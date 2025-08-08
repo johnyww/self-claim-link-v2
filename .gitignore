@@ -1,2 +1,5 @@
 #Ignore specific folders
 node_modules/
+
+#Ignore specific files
+improvement.txt
