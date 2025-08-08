@@ -2,7 +2,7 @@ export interface Product {
   id: number;
   name: string;
   description?: string;
-  download_links: string;
+  download_link: string;
   image_url?: string;
   created_at: string;
 }
@@ -10,14 +10,22 @@ export interface Product {
 export interface Order {
   id: number;
   order_id: string;
-  product_id: number;
-  claim_status: 'claimed' | 'unclaimed';
+  claim_status: 'claimed' | 'unclaimed' | 'available';
   claim_timestamp?: string;
+  claim_count: number;
   expiration_date?: string;
   one_time_use: boolean;
   created_by?: string;
   created_at: string;
-  product?: Product;
+  products?: Product[]; // Added for joined queries
+}
+
+export interface OrderProduct {
+  id: number;
+  order_id: number;
+  product_id: number;
+  created_at: string;
+  product?: Product; // Added for joined queries
 }
 
 export interface Settings {
@@ -29,6 +37,7 @@ export interface Settings {
 export interface ClaimResponse {
   success: boolean;
   message: string;
-  product?: Product;
+  products?: Product[];
   download_links?: string[];
+  claim_count?: number;
 }

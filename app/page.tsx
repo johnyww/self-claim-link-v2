@@ -47,10 +47,10 @@ export default function Home() {
               <Package className="w-8 h-8" />
             </div>
             <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              Claim Your Product
+              Claim Your Products
             </h1>
             <p className="text-gray-600">
-              Enter your order ID to claim your virtual product
+              Enter your order ID to claim your virtual products
             </p>
           </div>
 
@@ -67,7 +67,7 @@ export default function Home() {
                   value={orderId}
                   onChange={(e) => setOrderId(e.target.value)}
                   placeholder="Enter your Shopee order ID"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white text-gray-900 placeholder-gray-500"
                   required
                 />
               </div>
@@ -76,7 +76,7 @@ export default function Home() {
                 disabled={isLoading || !orderId.trim()}
                 className="w-full bg-primary-500 text-white py-2 px-4 rounded-md hover:bg-primary-600 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                {isLoading ? 'Claiming...' : 'Claim Product'}
+                {isLoading ? 'Claiming...' : 'Claim Products'}
               </button>
             </form>
           </div>
@@ -101,36 +101,34 @@ export default function Home() {
                     {result.message}
                   </p>
                   
-                  {result.success && result.product && (
+                  {result.success && result.products && result.products.length > 0 && (
                     <div className="mt-4 space-y-3">
-                      <div className="bg-white rounded-md p-3">
-                        <h3 className="font-semibold text-gray-900 mb-1">
-                          {result.product.name}
-                        </h3>
-                        {result.product.description && (
-                          <p className="text-sm text-gray-600 mb-3">
-                            {result.product.description}
-                          </p>
-                        )}
-                        
-                        {result.download_links && result.download_links.length > 0 && (
-                          <div className="space-y-2">
-                            <p className="text-sm font-medium text-gray-700">Download Links:</p>
-                            {result.download_links.map((link, index) => (
+                      {result.products.map((product, index) => (
+                        <div key={product.id} className="bg-white rounded-md p-3">
+                          <h3 className="font-semibold text-gray-900 mb-1">
+                            {product.name}
+                          </h3>
+                          {product.description && (
+                            <p className="text-sm text-gray-600 mb-3">
+                              {product.description}
+                            </p>
+                          )}
+                          
+                          {result.download_links && result.download_links[index] && (
+                            <div className="space-y-2">
                               <a
-                                key={index}
-                                href={link}
+                                href={result.download_links[index]}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="flex items-center justify-center w-full bg-primary-500 text-white py-2 px-3 rounded-md hover:bg-primary-600 transition-colors text-sm"
                               >
                                 <Download className="w-4 h-4 mr-2" />
-                                Download {result.download_links!.length > 1 ? `#${index + 1}` : ''}
+                                Download {result.products!.length > 1 ? `Product ${index + 1}` : 'Product'}
                               </a>
-                            ))}
-                          </div>
-                        )}
-                      </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
