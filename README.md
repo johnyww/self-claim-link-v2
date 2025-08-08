@@ -170,19 +170,6 @@ No environment variables required - uses SQLite for simplicity.
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🆘 Support
-
-For support and questions:
-- Create an issue in the GitHub repository
-- Check the admin dashboard for system status
-- Review the database logs for claim issues
-
-## 🔄 Version History
-
-- **v0.1.0** - Initial release with core claiming functionality
-- Features: Order claiming, admin dashboard, product management
-- Tech: Next.js 15, SQLite, TypeScript, Tailwind CSS
-
 ---
 
 Built with ❤️ using Next.js and modern web technologies.
