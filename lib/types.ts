@@ -36,8 +36,20 @@ export interface Settings {
 
 export interface ClaimResponse {
   success: boolean;
-  message: string;
-  products?: Product[];
-  download_links?: string[];
-  claim_count?: number;
+  message?: string; // For error responses
+  data?: {
+    success: boolean;
+    message: string;
+    products: Product[];
+    download_links: string[];
+    claimedAt: string;
+  };
+  error?: {
+    code: string;
+    message: string;
+    details?: string[];
+    timestamp: string;
+    requestId: string;
+  };
+  timestamp?: string;
 }

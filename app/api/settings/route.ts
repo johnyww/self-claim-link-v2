@@ -2,12 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase } from '@/lib/database';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import config from '@/lib/config';
 
 export async function GET() {
   try {
-    const db = await getDatabase();
-    const settings = await db.all('SELECT key, value FROM settings');
-    const admins = await db.all('SELECT id, username, created_at FROM admins');
+    const pool = await getDatabase();
+    const settingsResult = await pool.query('SELECT key, value FROM settings');
+    const adminsResult = await pool.query('SELECT id, username, created_at FROM admins');
+    
+    const settings = settingsResult.rows;
+    const admins = adminsResult.rows;
     
     // Convert settings array to object for easier access
     const settingsObj = settings.reduce((acc: any, setting: any) => {
@@ -29,7 +33,7 @@ export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
     const { action, ...data } = body;
-    const db = await getDatabase();
+    const pool = await getDatabase();
 
     switch (action) {
       case 'update_settings':
@@ -37,8 +41,8 @@ export async function PUT(request: NextRequest) {
         
         // Update each setting
         for (const [key, value] of Object.entries(settings)) {
-          await db.run(
-            'INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)',
+          await pool.query(
+            'INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value',
             [key, value]
           );
         }
@@ -49,30 +53,44 @@ export async function PUT(request: NextRequest) {
         const { username, password } = data;
         
         // Check if username already exists
-        const existingAdmin = await db.get('SELECT id FROM admins WHERE username = ?', [username]);
+        const adminResult = await pool.query('SELECT * FROM admins WHERE username = $1', [username]);
+        const existingAdmin = adminResult.rows[0];
         if (existingAdmin) {
           return NextResponse.json({ error: 'Username already exists' }, { status: 400 });
         }
         
         // Hash password and create admin
-        const passwordHash = await bcrypt.hash(password, 10);
-        const result = await db.run(
-          'INSERT INTO admins (username, password_hash) VALUES (?, ?)',
+        const passwordHash = await bcrypt.hash(password, config.getBcryptRounds());
+        const result = await pool.query(
+          'INSERT INTO admins (username, password_hash) VALUES ($1, $2) RETURNING id',
           [username, passwordHash]
         );
         
         return NextResponse.json({ 
           success: true, 
           message: 'Admin created successfully',
-          adminId: result.lastID
+          adminId: result.rows[0].id
         });
 
       case 'update_admin_password':
         const { adminId, newPassword } = data;
         
-        const newPasswordHash = await bcrypt.hash(newPassword, 10);
-        await db.run(
-          'UPDATE admins SET password_hash = ? WHERE id = ?',
+        // Validate password requirements (consistent with login validation)
+        if (!newPassword || typeof newPassword !== 'string') {
+          return NextResponse.json({ error: 'Password is required and must be a string' }, { status: 400 });
+        }
+        
+        if (newPassword.length < config.getPasswordMinLength()) {
+          return NextResponse.json({ error: `Password must be at least ${config.getPasswordMinLength()} characters long` }, { status: 400 });
+        }
+        
+        if (newPassword.length > config.getPasswordMaxLength()) {
+          return NextResponse.json({ error: `Password must be less than ${config.getPasswordMaxLength()} characters` }, { status: 400 });
+        }
+        
+        const newPasswordHash = await bcrypt.hash(newPassword, config.getBcryptRounds());
+        await pool.query(
+          'UPDATE admins SET password_hash = $1 WHERE id = $2',
           [newPasswordHash, adminId]
         );
         
@@ -82,7 +100,8 @@ export async function PUT(request: NextRequest) {
         const { adminId: deleteAdminId } = data;
         
         // Prevent deleting the last admin
-        const adminCount = await db.get('SELECT COUNT(*) as count FROM admins');
+        const adminCountResult = await pool.query('SELECT COUNT(*) as count FROM admins');
+        const adminCount = adminCountResult.rows[0];
         if (adminCount.count <= 1) {
           return NextResponse.json({ error: 'Cannot delete the last admin account' }, { status: 400 });
         }
@@ -100,7 +119,7 @@ export async function PUT(request: NextRequest) {
           }
         }
         
-        await db.run('DELETE FROM admins WHERE id = ?', [deleteAdminId]);
+        await pool.query('DELETE FROM admins WHERE id = $1', [deleteAdminId]);
         
         return NextResponse.json({ 
           success: true, 

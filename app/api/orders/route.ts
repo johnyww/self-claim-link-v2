@@ -4,24 +4,37 @@ import { addDays } from 'date-fns';
 
 export async function GET() {
   try {
-    const db = await getDatabase();
-    const orders = await db.all(`
+    const pool = await getDatabase();
+    const result = await pool.query(`
       SELECT o.*, 
-             GROUP_CONCAT(p.name) as product_names,
-             GROUP_CONCAT(p.id) as product_ids
+             STRING_AGG(p.name, ',') as product_names,
+             STRING_AGG(p.id::text, ',') as product_ids
       FROM orders o
       LEFT JOIN order_products op ON o.id = op.order_id
       LEFT JOIN products p ON op.product_id = p.id
-      GROUP BY o.id
+      GROUP BY o.id, o.order_id, o.claim_status, o.claim_timestamp, o.claim_count, o.expiration_date, o.one_time_use, o.created_by, o.created_at
       ORDER BY o.created_at DESC
     `);
+    const orders = result.rows;
     
     // Parse product names and IDs
-    const ordersWithProducts = orders.map(order => ({
-      ...order,
-      product_names: order.product_names ? order.product_names.split(',') : [],
-      product_ids: order.product_ids ? order.product_ids.split(',').map(Number) : []
-    }));
+    const ordersWithProducts = orders.map((order: any) => {
+      const productNames = order.product_names ? order.product_names.split(',') : [];
+      const productIds = order.product_ids ? order.product_ids.split(',').map(Number) : [];
+      
+      // Create products array with proper structure for frontend
+      const products = productNames.map((name: string, index: number) => ({
+        id: productIds[index],
+        name: name.trim()
+      }));
+      
+      return {
+        ...order,
+        product_names: productNames,
+        product_ids: productIds,
+        products: products
+      };
+    });
     
     return NextResponse.json(ordersWithProducts);
   } catch (error) {
@@ -39,18 +52,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Order ID and at least one product are required' }, { status: 400 });
     }
     
-    const db = await getDatabase();
+    const pool = await getDatabase();
     
     // Check if order already exists
-    const existingOrder = await db.get('SELECT id FROM orders WHERE order_id = ?', [order_id]);
-    if (existingOrder) {
+    const existingOrderResult = await pool.query('SELECT id FROM orders WHERE order_id = $1', [order_id]);
+    if (existingOrderResult.rows.length > 0) {
       return NextResponse.json({ error: 'Order ID already exists' }, { status: 400 });
     }
     
     // Verify all products exist
     for (const productId of product_ids) {
-      const product = await db.get('SELECT id FROM products WHERE id = ?', [productId]);
-      if (!product) {
+      const productResult = await pool.query('SELECT id FROM products WHERE id = $1', [productId]);
+      if (productResult.rows.length === 0) {
         return NextResponse.json({ error: `Product with ID ${productId} not found` }, { status: 404 });
       }
     }
@@ -61,30 +74,35 @@ export async function POST(request: NextRequest) {
       : null;
     
     // Create order
-    const orderResult = await db.run(`
+    const orderResult = await pool.query(`
       INSERT INTO orders (order_id, expiration_date, one_time_use, created_by)
-      VALUES (?, ?, ?, ?)
+      VALUES ($1, $2, $3, $4)
+      RETURNING id
     `, [order_id, expirationDate, one_time_use ?? true, created_by]);
+    
+    const newOrderId = orderResult.rows[0].id;
     
     // Add products to order
     for (const productId of product_ids) {
-      await db.run(`
+      await pool.query(`
         INSERT INTO order_products (order_id, product_id)
-        VALUES (?, ?)
-      `, [orderResult.lastID, productId]);
+        VALUES ($1, $2)
+      `, [newOrderId, productId]);
     }
     
     // Get the created order with product details
-    const newOrder = await db.get(`
+    const newOrderResult = await pool.query(`
       SELECT o.*, 
-             GROUP_CONCAT(p.name) as product_names,
-             GROUP_CONCAT(p.id) as product_ids
+             STRING_AGG(p.name, ',') as product_names,
+             STRING_AGG(p.id::text, ',') as product_ids
       FROM orders o
       LEFT JOIN order_products op ON o.id = op.order_id
       LEFT JOIN products p ON op.product_id = p.id
-      WHERE o.id = ?
-      GROUP BY o.id
-    `, [orderResult.lastID]);
+      WHERE o.id = $1
+      GROUP BY o.id, o.order_id, o.claim_status, o.claim_timestamp, o.claim_count, o.expiration_date, o.one_time_use, o.created_by, o.created_at
+    `, [newOrderId]);
+    
+    const newOrder = newOrderResult.rows[0];
     
     return NextResponse.json({
       ...newOrder,
@@ -101,26 +119,27 @@ export async function PUT(request: NextRequest) {
   try {
     const { id, order_id, product_ids, expiration_days, one_time_use } = await request.json();
     
-    console.log('PUT /api/orders - Received data:', { id, order_id, product_ids, expiration_days, one_time_use });
+
     
     if (!id || !order_id || !product_ids || product_ids.length === 0) {
       return NextResponse.json({ error: 'ID, order ID and at least one product are required' }, { status: 400 });
     }
     
-    const db = await getDatabase();
+    const pool = await getDatabase();
     
     // Check if order exists
-    const existingOrder = await db.get('SELECT id, one_time_use, claim_count FROM orders WHERE id = ?', [id]);
-    if (!existingOrder) {
+    const existingOrderResult = await pool.query('SELECT id, one_time_use, claim_count FROM orders WHERE id = $1', [id]);
+    if (existingOrderResult.rows.length === 0) {
       return NextResponse.json({ error: 'Order not found' }, { status: 404 });
     }
     
-    console.log('PUT /api/orders - Existing order:', existingOrder);
+    const existingOrder = existingOrderResult.rows[0];
+
     
     // Verify all products exist
     for (const productId of product_ids) {
-      const product = await db.get('SELECT id FROM products WHERE id = ?', [productId]);
-      if (!product) {
+      const productResult = await pool.query('SELECT id FROM products WHERE id = $1', [productId]);
+      if (productResult.rows.length === 0) {
         return NextResponse.json({ error: `Product with ID ${productId} not found` }, { status: 404 });
       }
     }
@@ -134,41 +153,44 @@ export async function PUT(request: NextRequest) {
     let newClaimCount = existingOrder.claim_count;
     if (!existingOrder.one_time_use && one_time_use) {
       newClaimCount = 0;
-      console.log('PUT /api/orders - Resetting claim count from', existingOrder.claim_count, 'to 0');
+
     }
     
-    console.log('PUT /api/orders - Updating with:', { order_id, expirationDate, one_time_use, newClaimCount });
+
     
     // Update order
-    await db.run(`
+    await pool.query(`
       UPDATE orders 
-      SET order_id = ?, expiration_date = ?, one_time_use = ?, claim_count = ?
-      WHERE id = ?
-    `, [order_id, expirationDate, one_time_use, newClaimCount, id]);
+      SET order_id = $1, expiration_date = $2, one_time_use = $3, claim_count = $4
+      WHERE id = $5
+    `, [order_id, expirationDate, one_time_use ?? true, newClaimCount, id]);
     
-    // Remove existing products and add new ones
-    await db.run('DELETE FROM order_products WHERE order_id = ?', [id]);
+    // Remove existing product associations
+    await pool.query('DELETE FROM order_products WHERE order_id = $1', [id]);
     
+    // Add new product associations
     for (const productId of product_ids) {
-      await db.run(`
+      await pool.query(`
         INSERT INTO order_products (order_id, product_id)
-        VALUES (?, ?)
+        VALUES ($1, $2)
       `, [id, productId]);
     }
     
-    // Get the updated order with product details
-    const updatedOrder = await db.get(`
+    // Get updated order with product details
+    const updatedOrderResult = await pool.query(`
       SELECT o.*, 
-             GROUP_CONCAT(p.name) as product_names,
-             GROUP_CONCAT(p.id) as product_ids
+             STRING_AGG(p.name, ',') as product_names,
+             STRING_AGG(p.id::text, ',') as product_ids
       FROM orders o
       LEFT JOIN order_products op ON o.id = op.order_id
       LEFT JOIN products p ON op.product_id = p.id
-      WHERE o.id = ?
-      GROUP BY o.id
+      WHERE o.id = $1
+      GROUP BY o.id, o.order_id, o.claim_status, o.claim_timestamp, o.claim_count, o.expiration_date, o.one_time_use, o.created_by, o.created_at
     `, [id]);
     
-    console.log('PUT /api/orders - Updated order:', updatedOrder);
+    const updatedOrder = updatedOrderResult.rows[0];
+    
+
     
     return NextResponse.json({
       ...updatedOrder,
@@ -190,13 +212,13 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Order ID is required' }, { status: 400 });
     }
     
-    const db = await getDatabase();
+    const pool = await getDatabase();
     
-    // Delete order products first
-    await db.run('DELETE FROM order_products WHERE order_id = ?', [id]);
+    // Delete order (this will cascade delete order_products due to foreign key)
+    await pool.query('DELETE FROM orders WHERE id = $1', [id]);
     
-    // Delete order
-    await db.run('DELETE FROM orders WHERE id = ?', [id]);
+    // Also explicitly delete order_products (in case cascade doesn't work)
+    await pool.query('DELETE FROM order_products WHERE order_id = $1', [id]);
     
     return NextResponse.json({ message: 'Order deleted successfully' });
   } catch (error) {

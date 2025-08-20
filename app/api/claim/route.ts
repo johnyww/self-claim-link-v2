@@ -1,59 +1,61 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase } from '@/lib/database';
-import { addDays, isAfter } from 'date-fns';
+import { isAfter } from 'date-fns';
+import { withApiRateLimit } from '@/lib/rateLimit';
+import { withErrorHandler, createSuccessResponse, NotFoundError, validateOrThrow } from '@/lib/errorHandler';
+import { validateOrderId } from '@/lib/validation';
+import { logger } from '@/lib/logger';
 
-export async function POST(request: NextRequest) {
-  try {
-    const { orderId } = await request.json();
+async function claimHandler(request: NextRequest) {
+  const requestBody = await request.json();
+  
+  // Validate order ID
+  const orderId = validateOrThrow(validateOrderId, requestBody.orderId);
+  
+  logger.info('Claim attempt started', { orderId });
     
-    if (!orderId) {
-      return NextResponse.json({ 
-        success: false, 
-        message: 'Order ID is required' 
-      }, { status: 400 });
-    }
-    
-    const db = await getDatabase();
+    const pool = await getDatabase();
     
     // Get order with all product details
-    const order = await db.get(`
+    const result = await pool.query(`
       SELECT o.*
       FROM orders o
-      WHERE o.order_id = ?
+      WHERE o.order_id = $1
     `, [orderId]);
     
+    const order = result.rows[0];
+    
     if (!order) {
-      return NextResponse.json({ 
-        success: false, 
-        message: 'Order not found' 
-      }, { status: 404 });
+      throw new NotFoundError('Order');
     }
     
     // Check expiration
     if (order.expiration_date && isAfter(new Date(), new Date(order.expiration_date))) {
-      return NextResponse.json({ 
+      return createSuccessResponse({ 
         success: false, 
         message: 'This order has expired' 
-      }, { status: 400 });
+      }, 400);
     }
     
     // Check one-time use restriction
     // For one-time use orders: if already claimed once, block further claims
     // For multi-use orders: allow unlimited claims
     if (order.one_time_use && order.claim_count >= 1) {
-      return NextResponse.json({ 
+      return createSuccessResponse({ 
         success: false, 
         message: 'This order has already been claimed (one-time use only)' 
-      }, { status: 400 });
+      }, 400);
     }
     
     // Get all products for this order
-    const products = await db.all(`
+    const productsResult = await pool.query(`
       SELECT p.*
       FROM products p
       JOIN order_products op ON p.id = op.product_id
-      WHERE op.order_id = ?
+      WHERE op.order_id = $1
     `, [order.id]);
+    
+    const products = productsResult.rows;
     
     if (products.length === 0) {
       return NextResponse.json({ 
@@ -66,33 +68,29 @@ export async function POST(request: NextRequest) {
     const newClaimCount = order.claim_count + 1;
     const newClaimStatus = order.one_time_use ? 'claimed' : 'available';
     
-    await db.run(`
+    await pool.query(`
       UPDATE orders 
-      SET claim_status = ?, claim_timestamp = CURRENT_TIMESTAMP, claim_count = ?
-      WHERE order_id = ?
+      SET claim_status = $1, claim_timestamp = CURRENT_TIMESTAMP, claim_count = $2
+      WHERE order_id = $3
     `, [newClaimStatus, newClaimCount, orderId]);
     
     // Prepare download links from all products
-    const downloadLinks = products.map(product => product.download_link);
+    const downloadLinks = products.map((product: any) => product.download_link);
     
-    return NextResponse.json({
+    const productsWithDetails = products.map((product: any) => ({
+      id: product.id,
+      name: product.name,
+      description: product.description,
+      image_url: product.image_url
+    }));
+    
+    return createSuccessResponse({
       success: true,
-      message: `Products claimed successfully! (Claimed ${newClaimCount} time${newClaimCount > 1 ? 's' : ''})`,
-      products: products.map(product => ({
-        id: product.id,
-        name: product.name,
-        description: product.description,
-        image_url: product.image_url
-      })),
+      message: 'Products claimed successfully!',
+      products: productsWithDetails,
       download_links: downloadLinks,
-      claim_count: newClaimCount
+      claimedAt: new Date().toISOString()
     });
-    
-  } catch (error) {
-    console.error('Claim error:', error);
-    return NextResponse.json({ 
-      success: false, 
-      message: 'Internal server error' 
-    }, { status: 500 });
-  }
 }
+
+export const POST = withApiRateLimit(withErrorHandler(claimHandler));

@@ -22,7 +22,7 @@ A modern Next.js web application for digital product claiming system. Allows cus
 
 - **Frontend**: Next.js 15, React 18, TypeScript
 - **Styling**: Tailwind CSS
-- **Database**: SQLite with sqlite3
+- **Database**: PostgreSQL with connection pooling
 - **Authentication**: bcryptjs, JWT
 - **Icons**: Lucide React
 - **Date Handling**: date-fns
@@ -50,7 +50,7 @@ A modern Next.js web application for digital product claiming system. Allows cus
 
 ## 🗄️ Database Schema
 
-The application automatically creates the following SQLite tables on first run:
+The application automatically creates the following PostgreSQL tables on first run:
 
 - **`products`**: Digital products with download links
 - **`orders`**: Order tracking with claim status and expiration
@@ -91,9 +91,9 @@ self-claim-link/
 │   ├── layout.tsx                # Root layout
 │   └── page.tsx                  # Main claiming interface
 ├── lib/
-│   ├── database.ts               # SQLite database setup
+│   ├── database.ts               # PostgreSQL database setup
 │   └── types.ts                  # TypeScript interfaces
-├── database.sqlite               # SQLite database file
+├── .env                          # Environment configuration (PostgreSQL credentials)
 ├── package.json
 └── README.md
 ```
@@ -149,7 +149,43 @@ npm start
 ```
 
 ### Environment Variables
-No environment variables required - uses SQLite for simplicity.
+
+Create a `.env` file in the project root with your PostgreSQL configuration:
+
+```env
+# JWT Secret - Generate a secure random secret
+JWT_SECRET=your-secure-jwt-secret-here
+
+# PostgreSQL Database Configuration
+DATABASE_URL=postgresql://username:password@localhost:5432/database_name
+
+# PostgreSQL Connection Details
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_DB=self_claim_db
+POSTGRES_USER=your_username
+POSTGRES_PASSWORD=your_password
+
+# Admin Configuration
+FORCE_ADMIN_PASSWORD_CHANGE=true
+DEFAULT_ADMIN_USERNAME=admin
+
+# Security Configuration
+RATE_LIMIT_WINDOW_MS=900000
+RATE_LIMIT_MAX_REQUESTS=100
+BCRYPT_ROUNDS=12
+SESSION_TIMEOUT_HOURS=24
+```
+
+### PostgreSQL Setup
+
+1. **Install PostgreSQL** on your system
+2. **Create a database** for the application:
+   ```sql
+   CREATE DATABASE self_claim_db;
+   ```
+3. **Configure your `.env` file** with your PostgreSQL credentials
+4. **Start the application** - tables will be created automatically
 
 ## 📊 API Endpoints
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   Package, 
@@ -8,15 +8,13 @@ import {
   Settings, 
   LogOut, 
   Plus, 
-  Eye,
-  Calendar,
+  Edit, 
+  Trash2, 
   CheckCircle,
   XCircle,
-  Edit,
-  Trash2,
+  RefreshCw,
   Save,
-  X,
-  RefreshCw
+  X
 } from 'lucide-react';
 import { Product, Order } from '@/lib/types';
 
@@ -39,19 +37,7 @@ export default function AdminDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [adminUsername, setAdminUsername] = useState<string>('');
 
-  // Check authentication on mount
-  useEffect(() => {
-    const token = localStorage.getItem('adminToken');
-    if (!token) {
-      router.push('/admin/login');
-      return;
-    }
-    setIsAuthenticated(true);
-    fetchAdminInfo();
-    fetchData();
-  }, [router]);
-
-  const fetchAdminInfo = async () => {
+  const fetchAdminInfo = useCallback(async () => {
     try {
       const token = localStorage.getItem('adminToken');
       const response = await fetch('/api/admin/me', {
@@ -62,14 +48,29 @@ export default function AdminDashboard() {
       
       if (response.ok) {
         const data = await response.json();
-        setAdminUsername(data.username);
+        setAdminUsername(data.data?.username || data.username);
+        
+        // Check if password change is required
+        if (data.data?.mustChangePassword) {
+          // Redirect back to login for password change
+          localStorage.removeItem('adminToken');
+          router.push('/admin/login');
+          return;
+        }
+      } else if (response.status === 401) {
+        // Token is invalid, redirect to login
+        localStorage.removeItem('adminToken');
+        router.push('/admin/login');
+        return;
       }
     } catch (error) {
       console.error('Failed to fetch admin info:', error);
+      localStorage.removeItem('adminToken');
+      router.push('/admin/login');
     }
-  };
+  }, [router]);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       const [productsRes, ordersRes] = await Promise.all([
         fetch('/api/products'),
@@ -86,7 +87,19 @@ export default function AdminDashboard() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  // Check authentication on mount
+  useEffect(() => {
+    const token = localStorage.getItem('adminToken');
+    if (!token) {
+      router.push('/admin/login');
+      return;
+    }
+    setIsAuthenticated(true);
+    fetchAdminInfo();
+    fetchData();
+  }, [router, fetchAdminInfo, fetchData]);
 
   const handleLogout = () => {
     localStorage.removeItem('adminToken');
@@ -254,7 +267,7 @@ function OrdersTab({ orders, products, onRefresh }: { orders: Order[], products:
       ...formData
     };
     
-    console.log('handleEditOrder - Sending data:', requestData);
+
     
     try {
       const response = await fetch('/api/orders', {
@@ -346,25 +359,37 @@ function OrdersTab({ orders, products, onRefresh }: { orders: Order[], products:
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Products
+                  Products {products.length === 0 && <span className="text-red-500">(No products available - create products first)</span>}
                 </label>
-                <select
-                  multiple
-                  value={formData.product_ids.map(String)}
-                  onChange={(e) => {
-                    const selectedIds = Array.from(e.target.selectedOptions, option => parseInt(option.value));
-                    setFormData({...formData, product_ids: selectedIds});
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
-                  required
-                >
-                  {products.map(product => (
-                    <option key={product.id} value={product.id}>
-                      {product.name}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs text-gray-500 mt-1">Hold Ctrl/Cmd to select multiple products</p>
+                {products.length === 0 ? (
+                  <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500">
+                    No products available. Please create products first in the Products tab.
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-32 overflow-y-auto border border-gray-300 rounded-md p-2 bg-white">
+                    {products.map(product => (
+                      <label key={product.id} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-1 rounded">
+                        <input
+                          type="checkbox"
+                          checked={formData.product_ids.includes(product.id)}
+                          onChange={(e) => {
+                            const productId = product.id;
+                            if (e.target.checked) {
+                              setFormData({...formData, product_ids: [...formData.product_ids, productId]});
+                            } else {
+                              setFormData({...formData, product_ids: formData.product_ids.filter(id => id !== productId)});
+                            }
+                          }}
+                          className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                        />
+                        <span className="text-sm text-gray-900">{product.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+                <p className="text-xs text-gray-500 mt-1">
+                  {products.length > 0 ? 'Check the products you want to include in this order' : 'Create products in the Products tab first'}
+                </p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1107,11 +1132,12 @@ function SettingsTab() {
                   <input
                     type="password"
                     required
-                    minLength={6}
+                    minLength={8}
                     value={passwordForm.newPassword}
                     onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-900 bg-white"
                   />
+                  <p className="text-xs text-gray-500 mt-1">Must be at least 8 characters long</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">

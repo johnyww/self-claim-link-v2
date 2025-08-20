@@ -3,9 +3,9 @@ import { getDatabase } from '@/lib/database';
 
 export async function GET() {
   try {
-    const db = await getDatabase();
-    const products = await db.all('SELECT * FROM products ORDER BY created_at DESC');
-    return NextResponse.json(products);
+    const pool = await getDatabase();
+    const result = await pool.query('SELECT * FROM products ORDER BY created_at DESC');
+    return NextResponse.json(result.rows);
   } catch (error) {
     console.error('Get products error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -20,13 +20,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Name and download link are required' }, { status: 400 });
     }
     
-    const db = await getDatabase();
-    const result = await db.run(`
+    const pool = await getDatabase();
+    const result = await pool.query(`
       INSERT INTO products (name, description, download_link, image_url)
-      VALUES (?, ?, ?, ?)
+      VALUES ($1, $2, $3, $4)
+      RETURNING *
     `, [name, description, download_link, image_url]);
     
-    const newProduct = await db.get('SELECT * FROM products WHERE id = ?', [result.lastID]);
+    const newProduct = result.rows[0];
     return NextResponse.json(newProduct, { status: 201 });
   } catch (error) {
     console.error('Create product error:', error);
@@ -42,14 +43,15 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'ID, name and download link are required' }, { status: 400 });
     }
     
-    const db = await getDatabase();
-    await db.run(`
+    const pool = await getDatabase();
+    await pool.query(`
       UPDATE products 
-      SET name = ?, description = ?, download_link = ?, image_url = ?
-      WHERE id = ?
+      SET name = $1, description = $2, download_link = $3, image_url = $4
+      WHERE id = $5
     `, [name, description, download_link, image_url, id]);
     
-    const updatedProduct = await db.get('SELECT * FROM products WHERE id = ?', [id]);
+    const result = await pool.query('SELECT * FROM products WHERE id = $1', [id]);
+    const updatedProduct = result.rows[0];
     
     // Ensure the result is JSON serializable
     const serializedProduct = {
@@ -77,8 +79,8 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Product ID is required' }, { status: 400 });
     }
     
-    const db = await getDatabase();
-    await db.run('DELETE FROM products WHERE id = ?', [id]);
+    const pool = await getDatabase();
+    await pool.query('DELETE FROM products WHERE id = $1', [id]);
     
     return NextResponse.json({ message: 'Product deleted successfully' });
   } catch (error) {

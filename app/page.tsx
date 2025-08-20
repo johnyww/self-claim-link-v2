@@ -98,32 +98,52 @@ export default function Home() {
                   <p className={`font-medium ${
                     result.success ? 'text-green-800' : 'text-red-800'
                   }`}>
-                    {result.message}
+                    {result.success 
+                      ? (result.data?.message || result.message)
+                      : (result.error?.message || result.message || 'An error occurred')
+                    }
                   </p>
                   
-                  {result.success && result.products && result.products.length > 0 && (
+                  {result.success && result.data?.products && result.data.products.length > 0 && (
                     <div className="mt-4 space-y-3">
-                      {result.products.map((product, index) => (
-                        <div key={product.id} className="bg-white rounded-md p-3">
-                          <h3 className="font-semibold text-gray-900 mb-1">
-                            {product.name}
-                          </h3>
-                          {product.description && (
-                            <p className="text-sm text-gray-600 mb-3">
-                              {product.description}
-                            </p>
-                          )}
+                      {result.data.products.map((product, index) => (
+                        <div key={product.id} className="bg-white rounded-md p-3 border border-gray-200 shadow-sm">
+                          <div className="flex items-start space-x-3">
+                            {product.image_url && (
+                              <div className="flex-shrink-0">
+                                <img
+                                  src={product.image_url}
+                                  alt={product.name}
+                                  className="w-16 h-16 rounded-md object-cover border border-gray-200"
+                                  onError={(e) => {
+                                    const target = e.target as HTMLImageElement;
+                                    target.style.display = 'none';
+                                  }}
+                                />
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-semibold text-gray-900 mb-1">
+                                {product.name}
+                              </h3>
+                              {product.description && (
+                                <p className="text-sm text-gray-600 mb-3">
+                                  {product.description}
+                                </p>
+                              )}
+                            </div>
+                          </div>
                           
-                          {result.download_links && result.download_links[index] && (
+                          {result.data?.download_links && result.data.download_links[index] && (
                             <div className="space-y-2">
                               <a
-                                href={result.download_links[index]}
+                                href={result.data.download_links[index]}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="flex items-center justify-center w-full bg-primary-500 text-white py-2 px-3 rounded-md hover:bg-primary-600 transition-colors text-sm"
                               >
                                 <Download className="w-4 h-4 mr-2" />
-                                Download {result.products!.length > 1 ? `Product ${index + 1}` : 'Product'}
+                                Download {result.data.products.length > 1 ? `Product ${index + 1}` : 'Product'}
                               </a>
                             </div>
                           )}
