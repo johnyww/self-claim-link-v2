@@ -31,8 +31,8 @@ A modern Next.js web application for digital product claiming system. Allows cus
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/johnyww/self-claim-link.git
-   cd self-claim-link
+   git clone https://github.com/johnyww/self-claim-link-v2.git
+   cd self-claim-link-v2
    ```
 
 2. **Install dependencies**

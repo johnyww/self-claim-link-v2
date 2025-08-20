@@ -2,6 +2,14 @@
   "name": "self-claim-link",
   "version": "0.1.0",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/johnyww/self-claim-link-v2.git"
+  },
+  "homepage": "https://github.com/johnyww/self-claim-link-v2#readme",
+  "bugs": {
+    "url": "https://github.com/johnyww/self-claim-link-v2/issues"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
