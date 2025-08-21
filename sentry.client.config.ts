@@ -9,10 +9,9 @@ Sentry.init({
   tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
   environment: process.env.NODE_ENV || 'development',
   release: process.env.NEXT_PUBLIC_APP_VERSION || '1.0.0',
+  tracePropagationTargets: ['localhost', /^https:\/\/yourapp\.com\/api/],
   integrations: [
-    Sentry.browserTracingIntegration({
-      tracePropagationTargets: ['localhost', /^https:\/\/yourapp\.com\/api/],
-    }),
+    Sentry.browserTracingIntegration(),
     Sentry.captureConsoleIntegration({ levels: ['error', 'warn'] }),
   ],
   beforeSend(event) {
