@@ -20,6 +20,7 @@ jest.mock('../../lib/logger', () => ({
 }))
 
 jest.mock('../../lib/config', () => ({
+  __esModule: true,
   default: {
     getPostgresConfig: () => ({
       host: 'localhost',
@@ -28,6 +29,7 @@ jest.mock('../../lib/config', () => ({
       user: 'test_user',
       password: 'test_password',
     }),
+    get: () => ({ bcryptRounds: 12 }),
   },
 }))
 

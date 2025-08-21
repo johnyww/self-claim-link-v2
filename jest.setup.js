@@ -24,7 +24,7 @@ jest.mock('next/navigation', () => ({
 }))
 
 // Mock environment variables for tests
-process.env.JWT_SECRET = 'test-jwt-secret-key'
+process.env.JWT_SECRET = 'test-jwt-secret-key-1234567890-abcdefghijkl'
 process.env.NODE_ENV = 'test'
 process.env.POSTGRES_HOST = 'localhost'
 process.env.POSTGRES_PORT = '5432'

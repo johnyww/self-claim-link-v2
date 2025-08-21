@@ -16,7 +16,7 @@ export const mockDbClient = {
 // Mock database pool
 export const mockDbPool = {
   connect: jest.fn().mockResolvedValue(mockDbClient),
-  query: jest.fn(),
+  query: mockDbClient.query,
   end: jest.fn(),
 }
 
