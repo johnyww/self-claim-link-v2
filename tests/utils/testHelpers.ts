@@ -2,7 +2,7 @@
  * Test utilities and helpers
  */
 
-import { NextRequest } from 'next/server'
+import type { NextRequest } from 'next/server'
 import jwt from 'jsonwebtoken'
 
 // Mock database client for testing
@@ -28,10 +28,10 @@ export function createMockRequest(
     headers?: Record<string, string>
     body?: any
   } = {}
-): NextRequest {
+): NextRequest | any {
   const { method = 'GET', headers = {}, body } = options
   
-  const request = new NextRequest(url, {
+  const request = new Request(url, {
     method,
     headers: new Headers(headers),
     body: body ? JSON.stringify(body) : undefined,

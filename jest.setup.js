@@ -1,5 +1,8 @@
 import '@testing-library/jest-dom'
 
+// Provide fetch and Request/Response in Node test env
+import 'whatwg-fetch'
+
 // Mock Next.js router
 jest.mock('next/navigation', () => ({
   useRouter() {
