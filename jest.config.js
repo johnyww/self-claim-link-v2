@@ -23,12 +23,12 @@ const customJestConfig = {
   ],
   coverageReporters: ['text', 'lcov', 'html'],
   coverageDirectory: 'coverage',
-  moduleNameMapping: {
+  moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',
   },
   testMatch: [
-    '<rootDir>/**/__tests__/**/*.{js,jsx,ts,tsx}',
-    '<rootDir>/**/*.(test|spec).{js,jsx,ts,tsx}'
+    '<rootDir>/**/__tests__/**/*.[jt]s?(x)',
+    '<rootDir>/**/*?(.)+(spec|test).[jt]s?(x)'
   ],
 }
 
