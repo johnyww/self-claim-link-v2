@@ -2,9 +2,12 @@
  * Database layer unit tests
  */
 
+// Mock the database module first
+jest.mock('../../lib/database')
+
 import * as database from '../../lib/database'
 
-// Mock the database functions directly
+// Get the mocked functions
 const mockDatabase = database as jest.Mocked<typeof database>
 
 describe('Database Layer', () => {
@@ -14,8 +17,8 @@ describe('Database Layer', () => {
 
   describe('getDatabase', () => {
     it('should establish database connection successfully', async () => {
-      const mockPool = { connect: jest.fn(), query: jest.fn() }
-      mockDatabase.getDatabase = jest.fn().mockResolvedValue(mockPool)
+      const mockPool = { connect: jest.fn(), query: jest.fn() } as any
+      mockDatabase.getDatabase.mockResolvedValue(mockPool)
       
       const db = await mockDatabase.getDatabase()
       
@@ -24,8 +27,8 @@ describe('Database Layer', () => {
     })
 
     it('should return existing pool on subsequent calls', async () => {
-      const mockPool = { connect: jest.fn(), query: jest.fn() }
-      mockDatabase.getDatabase = jest.fn().mockResolvedValue(mockPool)
+      const mockPool = { connect: jest.fn(), query: jest.fn() } as any
+      mockDatabase.getDatabase.mockResolvedValue(mockPool)
       
       const db1 = await mockDatabase.getDatabase()
       const db2 = await mockDatabase.getDatabase()
@@ -46,7 +49,7 @@ describe('Database Layer', () => {
         updated_at: new Date()
       }
       
-      mockDatabase.getAdminByUsername = jest.fn().mockResolvedValue(mockAdmin)
+      mockDatabase.getAdminByUsername.mockResolvedValue(mockAdmin)
       
       const admin = await mockDatabase.getAdminByUsername('admin')
       
@@ -55,7 +58,7 @@ describe('Database Layer', () => {
     })
 
     it('should return null when admin not found', async () => {
-      mockDatabase.getAdminByUsername = jest.fn().mockResolvedValue(null)
+      mockDatabase.getAdminByUsername.mockResolvedValue(null)
       
       const admin = await mockDatabase.getAdminByUsername('nonexistent')
       
@@ -63,7 +66,7 @@ describe('Database Layer', () => {
     })
 
     it('should handle database errors', async () => {
-      mockDatabase.getAdminByUsername = jest.fn().mockRejectedValue(new Error('Failed to retrieve admin user'))
+      mockDatabase.getAdminByUsername.mockRejectedValue(new Error('Failed to retrieve admin user'))
       
       await expect(mockDatabase.getAdminByUsername('admin')).rejects.toThrow('Failed to retrieve admin user')
     })
@@ -71,7 +74,7 @@ describe('Database Layer', () => {
 
   describe('updateAdminPassword', () => {
     it('should update password successfully', async () => {
-      mockDatabase.updateAdminPassword = jest.fn().mockResolvedValue(undefined)
+      mockDatabase.updateAdminPassword.mockResolvedValue(undefined)
       
       await mockDatabase.updateAdminPassword(1, 'new_hash')
       
@@ -79,7 +82,7 @@ describe('Database Layer', () => {
     })
 
     it('should handle update errors', async () => {
-      mockDatabase.updateAdminPassword = jest.fn().mockRejectedValue(new Error('Failed to update password'))
+      mockDatabase.updateAdminPassword.mockRejectedValue(new Error('Failed to update password'))
       
       await expect(mockDatabase.updateAdminPassword(1, 'hash')).rejects.toThrow('Failed to update password')
     })
@@ -87,7 +90,7 @@ describe('Database Layer', () => {
 
   describe('recordFailedLogin', () => {
     it('should record failed login attempt', async () => {
-      mockDatabase.recordFailedLogin = jest.fn().mockResolvedValue(undefined)
+      mockDatabase.recordFailedLogin.mockResolvedValue(undefined)
       
       await mockDatabase.recordFailedLogin('admin')
       
@@ -97,7 +100,7 @@ describe('Database Layer', () => {
 
   describe('isAdminLocked', () => {
     it('should return true when admin is locked', async () => {
-      mockDatabase.isAdminLocked = jest.fn().mockResolvedValue(true)
+      mockDatabase.isAdminLocked.mockResolvedValue(true)
       
       const isLocked = await mockDatabase.isAdminLocked('admin')
       
@@ -105,7 +108,7 @@ describe('Database Layer', () => {
     })
 
     it('should return false when admin is not locked', async () => {
-      mockDatabase.isAdminLocked = jest.fn().mockResolvedValue(false)
+      mockDatabase.isAdminLocked.mockResolvedValue(false)
       
       const isLocked = await mockDatabase.isAdminLocked('admin')
       

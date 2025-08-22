@@ -2,7 +2,6 @@
  * Login API endpoint tests
  */
 
-import { POST } from '../../../app/api/auth/login/route'
 import { createMockRequest } from '../../utils/testHelpers'
 
 // Mock all dependencies
@@ -15,6 +14,17 @@ jest.mock('../../../lib/config')
 jest.mock('bcryptjs')
 jest.mock('jsonwebtoken')
 
+// Mock NextResponse
+jest.mock('next/server', () => ({
+  NextResponse: {
+    json: jest.fn((data, options) => ({
+      json: () => Promise.resolve(data),
+      status: options?.status || 200,
+      ok: options?.status < 400
+    }))
+  }
+}))
+
 describe('/api/auth/login', () => {
   let mockDatabase: any
   let mockValidation: any
@@ -23,8 +33,9 @@ describe('/api/auth/login', () => {
   let mockConfig: any
   let mockBcrypt: any
   let mockJwt: any
+  let POST: any
 
-  beforeEach(() => {
+  beforeEach(async () => {
     jest.clearAllMocks()
     
     // Setup database mocks
@@ -64,6 +75,10 @@ describe('/api/auth/login', () => {
     // Setup JWT mocks
     mockJwt = require('jsonwebtoken')
     mockJwt.sign = jest.fn(() => 'test-token')
+
+    // Import the route after setting up mocks
+    const route = await import('../../../app/api/auth/login/route')
+    POST = route.POST
   })
 
   describe('POST /api/auth/login', () => {
@@ -81,16 +96,18 @@ describe('/api/auth/login', () => {
       mockDatabase.getAdminByUsername.mockResolvedValue(mockAdmin)
       mockBcrypt.compare.mockResolvedValue(true)
       mockDatabase.resetFailedLogins.mockResolvedValue(undefined)
-      mockErrorHandler.createSuccessResponse.mockReturnValue(
-        Response.json({
+      mockErrorHandler.createSuccessResponse.mockReturnValue({
+        json: () => Promise.resolve({
           success: true,
           data: {
             token: 'test-token',
             username: 'admin',
             mustChangePassword: false
           }
-        })
-      )
+        }),
+        status: 200,
+        ok: true
+      })
       
       const request = createMockRequest('http://localhost:3000/api/auth/login', {
         method: 'POST',
