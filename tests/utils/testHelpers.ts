@@ -37,6 +37,14 @@ export function createMockRequest(
     body: body ? JSON.stringify(body) : undefined,
   })
   
+  // Add the json method that NextRequest expects
+  request.json = async () => {
+    if (body) {
+      return body
+    }
+    throw new Error('No body to parse')
+  }
+  
   return request
 }
 

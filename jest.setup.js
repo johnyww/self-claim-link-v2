@@ -1,5 +1,9 @@
 import '@testing-library/jest-dom'
 
+// Polyfill TextEncoder and TextDecoder for Node.js test environment
+global.TextEncoder = global.TextEncoder || require('util').TextEncoder
+global.TextDecoder = global.TextDecoder || require('util').TextDecoder
+
 // Polyfill fetch for Node.js test environment
 global.fetch = global.fetch || jest.fn()
 global.Request = global.Request || class Request {}
