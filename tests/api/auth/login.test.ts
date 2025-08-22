@@ -50,14 +50,15 @@ describe('/api/auth/login', () => {
       mockDatabase.getAdminByUsername.mockResolvedValue(mockAdmin)
       mockDatabase.resetFailedLogins.mockResolvedValue(undefined)
       
-      const mockPOST = jest.fn().mockResolvedValue(
-        NextResponse.json({
+      const mockPOST = jest.fn().mockResolvedValue({
+        status: 200,
+        json: jest.fn().mockResolvedValue({
           success: true,
           token: 'mock-jwt-token',
           admin: { id: 1, username: 'admin' },
           timestamp: new Date().toISOString()
         })
-      )
+      })
       
       const request = createMockRequest('http://localhost:3000/api/auth/login', {
         method: 'POST',
