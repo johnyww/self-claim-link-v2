@@ -52,7 +52,7 @@ jobs:
       run: npm run test:coverage
       env:
         NODE_ENV: test
-        JWT_SECRET: test-jwt-secret-for-ci
+        JWT_SECRET: test-jwt-secret-for-ci-testing-environment-32-chars
         POSTGRES_HOST: localhost
         POSTGRES_PORT: 5432
         POSTGRES_DB: test_db
@@ -70,7 +70,7 @@ jobs:
       run: npm run build
       env:
         NODE_ENV: production
-        JWT_SECRET: test-jwt-secret-for-build
+        JWT_SECRET: test-jwt-secret-for-build-production-env-32-chars
         POSTGRES_HOST: localhost
         POSTGRES_PORT: 5432
         POSTGRES_DB: test_db
@@ -84,7 +84,7 @@ jobs:
       run: npm run test:e2e
       env:
         NODE_ENV: test
-        JWT_SECRET: test-jwt-secret-for-e2e
+        JWT_SECRET: test-jwt-secret-for-e2e-testing-environment-32-chars
         POSTGRES_HOST: localhost
         POSTGRES_PORT: 5432
         POSTGRES_DB: test_db
