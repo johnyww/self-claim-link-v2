@@ -140,7 +140,7 @@ jobs:
         context: .
         push: true
         tags: |
-          ${{ secrets.DOCKER_USERNAME }}/self-claim-link:latest
-          ${{ secrets.DOCKER_USERNAME }}/self-claim-link:${{ github.sha }}
+          ${{ secrets.DOCKER_USERNAME }}/self-claim-link-2:latest
+          ${{ secrets.DOCKER_USERNAME }}/self-claim-link-2:${{ github.sha }}
         cache-from: type=gha
         cache-to: type=gha,mode=max

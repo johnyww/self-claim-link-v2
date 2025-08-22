@@ -1,6 +1,6 @@
 # Logging and Monitoring System
 
-This document describes the comprehensive logging and monitoring system implemented for the self-claim-link application.
+This document describes the comprehensive logging and monitoring system implemented for the self-claim-link-2 application.
 
 ## 🎯 Overview
 
@@ -156,7 +156,7 @@ NEXT_PUBLIC_SENTRY_DSN=your_public_sentry_dsn_here
 
 # Application
 APP_VERSION=1.0.0
-SERVER_NAME=self-claim-link-server
+SERVER_NAME=self-claim-link-2-server
 ```
 
 ### Log Files (Production)

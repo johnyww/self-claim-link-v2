@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# PostgreSQL Restore Script for Self-Claim-Link Application
+# PostgreSQL Restore Script for Self-Claim-Link-2 Application
 # This script restores database from backup files
 
 set -e

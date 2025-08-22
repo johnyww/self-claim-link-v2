@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# PostgreSQL Backup Script for Self-Claim-Link Application
+# PostgreSQL Backup Script for Self-Claim-Link-2 Application
 # This script creates automated backups with rotation
 
 set -e

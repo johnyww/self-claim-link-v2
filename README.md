@@ -1,4 +1,4 @@
-# Self-Claim-Link v2
+# Self-Claim-Link-2
 
 A modern, secure digital product delivery system that allows customers to claim and download virtual products using Shopee order IDs. Built with Next.js 15, PostgreSQL, and comprehensive admin management capabilities.
 

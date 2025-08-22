@@ -1,6 +1,6 @@
 # Production Deployment Guide
 
-This guide covers deploying the Self-Claim-Link application to production with all Phase 1 production-ready components.
+This guide covers deploying the Self-Claim-Link-2 application to production with all Phase 1 production-ready components.
 
 ## 🚀 Quick Start with Docker
 
@@ -13,8 +13,8 @@ This guide covers deploying the Self-Claim-Link application to production with a
 
 ```bash
 # Clone the repository
-git clone https://github.com/johnyww/self-claim-link.git
-cd self-claim-link
+git clone https://github.com/johnyww/self-claim-link-2.git
+cd self-claim-link-2
 
 # Copy environment files
 cp docker-compose.env.example .env
@@ -75,7 +75,7 @@ npm run build
 
 ```bash
 # With PM2
-pm2 start npm --name "self-claim-link" -- start
+pm2 start npm --name "self-claim-link-2" -- start
 
 # Or directly
 npm start

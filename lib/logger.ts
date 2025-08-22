@@ -72,7 +72,7 @@ class Logger {
       level: this.isDevelopment ? 'debug' : 'info',
       format: winston.format.combine(...formats),
       defaultMeta: {
-        service: 'self-claim-link',
+        service: 'self-claim-link-2',
         environment: process.env.NODE_ENV || 'development'
       },
       transports: [
