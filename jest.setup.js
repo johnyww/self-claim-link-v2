@@ -1,7 +1,12 @@
 import '@testing-library/jest-dom'
 
-// Provide fetch and Request/Response in Node test env
-import 'whatwg-fetch'
+// Polyfill fetch for Node.js test environment
+if (!global.fetch) {
+  global.fetch = require('whatwg-fetch').fetch
+  global.Request = require('whatwg-fetch').Request
+  global.Response = require('whatwg-fetch').Response
+  global.Headers = require('whatwg-fetch').Headers
+}
 
 // Mock Next.js router
 jest.mock('next/navigation', () => ({
@@ -51,58 +56,8 @@ global.console = {
   error: jest.fn(),
 }
 
-// Mock logger module
-jest.mock('./lib/logger', () => ({
-  logger: {
-    error: jest.fn(),
-    warn: jest.fn(),
-    info: jest.fn(),
-    debug: jest.fn(),
-    http: jest.fn(),
-    logBusinessEvent: jest.fn(),
-    logPerformance: jest.fn(),
-    logDatabaseOperation: jest.fn(),
-    logApiRequest: jest.fn(),
-    logApiResponse: jest.fn(),
-    logSecurityEvent: jest.fn(),
-    logAuth: jest.fn(),
-    logClaimOperation: jest.fn(),
-    logProductOperation: jest.fn(),
-    logOrderOperation: jest.fn(),
-  },
-  generateRequestId: jest.fn(() => 'test-request-id'),
-  measurePerformance: jest.fn((operation, fn) => fn()),
-}))
+// Note: Logger mocks are handled in individual test files
 
-// Mock database module
-jest.mock('./lib/database', () => ({
-  getDatabase: jest.fn(),
-  getAdminByUsername: jest.fn(),
-  updateAdminPassword: jest.fn(),
-  recordFailedLogin: jest.fn(),
-  isAdminLocked: jest.fn(),
-  resetFailedLogins: jest.fn(),
-  getOrderById: jest.fn(),
-  updateOrderClaimStatus: jest.fn(),
-  getOrderProducts: jest.fn(),
-}))
+// Note: Database mocks are handled in individual test files
 
-// Mock config module
-jest.mock('./lib/config', () => ({
-  default: {
-    isDevelopment: jest.fn(() => true),
-    jwt: {
-      secret: 'test-jwt-secret',
-      expiresIn: '1h',
-    },
-    bcrypt: {
-      rounds: 10,
-    },
-    rateLimit: {
-      windowMs: 15 * 60 * 1000,
-      maxRequests: 100,
-      strictWindowMs: 15 * 60 * 1000,
-      strictMaxRequests: 5,
-    },
-  },
-}))
+// Note: Config mocks are handled in individual test files

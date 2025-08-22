@@ -2,7 +2,7 @@
  * Login API endpoint tests
  */
 
-import { NextResponse } from 'next/server'
+import { POST } from '../../../app/api/auth/login/route'
 import { createMockRequest } from '../../utils/testHelpers'
 
 // Mock all dependencies
@@ -10,11 +10,19 @@ jest.mock('../../../lib/database')
 jest.mock('../../../lib/logger')
 jest.mock('../../../lib/validation')
 jest.mock('../../../lib/rateLimit')
+jest.mock('../../../lib/errorHandler')
+jest.mock('../../../lib/config')
+jest.mock('bcryptjs')
+jest.mock('jsonwebtoken')
 
 describe('/api/auth/login', () => {
   let mockDatabase: any
   let mockValidation: any
   let mockRateLimit: any
+  let mockErrorHandler: any
+  let mockConfig: any
+  let mockBcrypt: any
+  let mockJwt: any
 
   beforeEach(() => {
     jest.clearAllMocks()
@@ -28,14 +36,34 @@ describe('/api/auth/login', () => {
     
     // Setup validation mocks
     mockValidation = require('../../../lib/validation')
-    mockValidation.validateLoginRequest = jest.fn().mockReturnValue({
-      isValid: true,
-      sanitizedData: { username: 'admin', password: 'password' }
-    })
+    mockValidation.validateAdminCredentials = jest.fn()
     
     // Setup rate limit mocks
     mockRateLimit = require('../../../lib/rateLimit')
     mockRateLimit.withStrictRateLimit = jest.fn((handler) => handler)
+    
+    // Setup error handler mocks
+    mockErrorHandler = require('../../../lib/errorHandler')
+    mockErrorHandler.withErrorHandler = jest.fn((handler) => handler)
+    mockErrorHandler.createSuccessResponse = jest.fn()
+    mockErrorHandler.validateOrThrow = jest.fn()
+    mockErrorHandler.AuthenticationError = jest.fn()
+    mockErrorHandler.ValidationError = jest.fn()
+    
+    // Setup config mocks
+    mockConfig = require('../../../lib/config')
+    mockConfig.default = {
+      getJwtSecret: jest.fn(() => 'test-secret'),
+      get: jest.fn(() => ({ sessionTimeoutHours: 24 }))
+    }
+    
+    // Setup bcrypt mocks
+    mockBcrypt = require('bcryptjs')
+    mockBcrypt.compare = jest.fn()
+    
+    // Setup JWT mocks
+    mockJwt = require('jsonwebtoken')
+    mockJwt.sign = jest.fn(() => 'test-token')
   })
 
   describe('POST /api/auth/login', () => {
@@ -43,61 +71,59 @@ describe('/api/auth/login', () => {
       const mockAdmin = {
         id: 1,
         username: 'admin',
-        password_hash: '$2a$12$validhashedpassword'
+        password_hash: '$2a$12$validhashedpassword',
+        must_change_password: false
       }
       
+      // Setup successful login scenario
+      mockErrorHandler.validateOrThrow.mockReturnValue({ username: 'admin', password: 'password' })
       mockDatabase.isAdminLocked.mockResolvedValue(false)
       mockDatabase.getAdminByUsername.mockResolvedValue(mockAdmin)
+      mockBcrypt.compare.mockResolvedValue(true)
       mockDatabase.resetFailedLogins.mockResolvedValue(undefined)
-      
-      const mockPOST = jest.fn().mockResolvedValue({
-        status: 200,
-        json: jest.fn().mockResolvedValue({
+      mockErrorHandler.createSuccessResponse.mockReturnValue(
+        Response.json({
           success: true,
-          token: 'mock-jwt-token',
-          admin: { id: 1, username: 'admin' },
-          timestamp: new Date().toISOString()
+          data: {
+            token: 'test-token',
+            username: 'admin',
+            mustChangePassword: false
+          }
         })
-      })
+      )
       
       const request = createMockRequest('http://localhost:3000/api/auth/login', {
         method: 'POST',
         body: { username: 'admin', password: 'password' }
       })
       
-      const response = await mockPOST(request)
-      const responseData = await response.json()
+      await POST(request)
       
-      expect(response.status).toBe(200)
-      expect(responseData).toHaveProperty('success', true)
-      expect(responseData).toHaveProperty('token')
-      expect(responseData).toHaveProperty('admin')
+      expect(mockDatabase.isAdminLocked).toHaveBeenCalledWith('admin')
+      expect(mockDatabase.getAdminByUsername).toHaveBeenCalledWith('admin')
+      expect(mockBcrypt.compare).toHaveBeenCalledWith('password', mockAdmin.password_hash)
+      expect(mockDatabase.resetFailedLogins).toHaveBeenCalledWith('admin')
     })
 
     it('should fail with invalid username', async () => {
+      // Setup failed login scenario
+      mockErrorHandler.validateOrThrow.mockReturnValue({ username: 'invalid', password: 'password' })
       mockDatabase.isAdminLocked.mockResolvedValue(false)
       mockDatabase.getAdminByUsername.mockResolvedValue(null)
       mockDatabase.recordFailedLogin.mockResolvedValue(undefined)
-      
-      const mockPOST = jest.fn().mockResolvedValue(
-        NextResponse.json({
-          success: false,
-          error: {
-            code: 'AUTHENTICATION_ERROR',
-            message: 'Invalid credentials',
-            timestamp: new Date().toISOString()
-          }
-        }, { status: 401 })
-      )
+      mockErrorHandler.AuthenticationError.mockImplementation((message: string) => {
+        const error = new Error(message)
+        error.name = 'AuthenticationError'
+        throw error
+      })
       
       const request = createMockRequest('http://localhost:3000/api/auth/login', {
         method: 'POST',
         body: { username: 'invalid', password: 'password' }
       })
       
-      const response = await mockPOST(request)
-      
-      expect(response.status).toBe(401)
+      await expect(POST(request)).rejects.toThrow('Invalid credentials')
+      expect(mockDatabase.recordFailedLogin).toHaveBeenCalledWith('invalid')
     })
 
     it('should fail with invalid password', async () => {
@@ -107,125 +133,54 @@ describe('/api/auth/login', () => {
         password_hash: '$2a$12$differenthashedpassword'
       }
       
+      mockErrorHandler.validateOrThrow.mockReturnValue({ username: 'admin', password: 'wrongpassword' })
       mockDatabase.isAdminLocked.mockResolvedValue(false)
       mockDatabase.getAdminByUsername.mockResolvedValue(mockAdmin)
+      mockBcrypt.compare.mockResolvedValue(false)
       mockDatabase.recordFailedLogin.mockResolvedValue(undefined)
-      
-      const mockPOST = jest.fn().mockResolvedValue(
-        NextResponse.json({
-          success: false,
-          error: {
-            code: 'AUTHENTICATION_ERROR',
-            message: 'Invalid credentials',
-            timestamp: new Date().toISOString()
-          }
-        }, { status: 401 })
-      )
+      mockErrorHandler.AuthenticationError.mockImplementation((message: string) => {
+        const error = new Error(message)
+        error.name = 'AuthenticationError'
+        throw error
+      })
       
       const request = createMockRequest('http://localhost:3000/api/auth/login', {
         method: 'POST',
         body: { username: 'admin', password: 'wrongpassword' }
       })
       
-      const response = await mockPOST(request)
-      
-      expect(response.status).toBe(401)
+      await expect(POST(request)).rejects.toThrow('Invalid credentials')
+      expect(mockDatabase.recordFailedLogin).toHaveBeenCalledWith('admin')
     })
 
     it('should fail when admin account is locked', async () => {
+      mockErrorHandler.validateOrThrow.mockReturnValue({ username: 'admin', password: 'password' })
       mockDatabase.isAdminLocked.mockResolvedValue(true)
-      
-      const mockPOST = jest.fn().mockResolvedValue(
-        NextResponse.json({
-          success: false,
-          error: {
-            code: 'AUTHENTICATION_ERROR',
-            message: 'Account is temporarily locked',
-            timestamp: new Date().toISOString()
-          }
-        }, { status: 423 })
-      )
+      mockErrorHandler.AuthenticationError.mockImplementation((message: string) => {
+        const error = new Error(message)
+        error.name = 'AuthenticationError'
+        throw error
+      })
       
       const request = createMockRequest('http://localhost:3000/api/auth/login', {
         method: 'POST',
         body: { username: 'admin', password: 'password' }
       })
       
-      const response = await mockPOST(request)
-      
-      expect(response.status).toBe(423)
-    })
-
-    it('should fail with missing credentials', async () => {
-      mockValidation.validateLoginRequest.mockReturnValue({
-        isValid: false,
-        errors: ['Username and password are required']
-      })
-      
-      const mockPOST = jest.fn().mockResolvedValue(
-        NextResponse.json({
-          success: false,
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: 'Validation failed',
-            timestamp: new Date().toISOString()
-          }
-        }, { status: 400 })
-      )
-      
-      const request = createMockRequest('http://localhost:3000/api/auth/login', {
-        method: 'POST',
-        body: { username: 'admin' }
-      })
-      
-      const response = await mockPOST(request)
-      
-      expect(response.status).toBe(400)
+      await expect(POST(request)).rejects.toThrow('Account is temporarily locked')
+      expect(mockDatabase.isAdminLocked).toHaveBeenCalledWith('admin')
     })
 
     it('should handle database errors gracefully', async () => {
+      mockErrorHandler.validateOrThrow.mockReturnValue({ username: 'admin', password: 'password' })
       mockDatabase.isAdminLocked.mockRejectedValue(new Error('Database connection failed'))
-      
-      const mockPOST = jest.fn().mockResolvedValue(
-        NextResponse.json({
-          success: false,
-          error: {
-            code: 'INTERNAL_ERROR',
-            message: 'Internal server error',
-            timestamp: new Date().toISOString()
-          }
-        }, { status: 500 })
-      )
       
       const request = createMockRequest('http://localhost:3000/api/auth/login', {
         method: 'POST',
         body: { username: 'admin', password: 'password' }
       })
       
-      const response = await mockPOST(request)
-      
-      expect(response.status).toBe(500)
-    })
-
-    it('should only accept POST method', async () => {
-      const mockPOST = jest.fn().mockResolvedValue(
-        NextResponse.json({
-          success: false,
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: 'Method not allowed',
-            timestamp: new Date().toISOString()
-          }
-        }, { status: 405 })
-      )
-      
-      const request = createMockRequest('http://localhost:3000/api/auth/login', {
-        method: 'GET'
-      })
-      
-      const response = await mockPOST(request)
-      
-      expect(response.status).toBe(405)
+      await expect(POST(request)).rejects.toThrow('Database connection failed')
     })
   })
 })
