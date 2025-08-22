@@ -2,7 +2,7 @@
  * Claim API endpoint tests
  */
 
-import { NextResponse } from 'next/server'
+import { POST } from '../../app/api/claim/route'
 import { createMockRequest } from '../utils/testHelpers'
 
 // Mock all dependencies before importing the route
@@ -10,11 +10,14 @@ jest.mock('../../lib/database')
 jest.mock('../../lib/logger')
 jest.mock('../../lib/validation')
 jest.mock('../../lib/rateLimit')
+jest.mock('../../lib/errorHandler')
+jest.mock('../../lib/config')
 
 describe('/api/claim', () => {
   let mockDatabase: any
   let mockValidation: any
   let mockRateLimit: any
+  let mockErrorHandler: any
 
   beforeEach(() => {
     jest.clearAllMocks()
@@ -27,14 +30,19 @@ describe('/api/claim', () => {
     
     // Setup validation mocks
     mockValidation = require('../../lib/validation')
-    mockValidation.validateClaimRequest = jest.fn().mockReturnValue({
-      isValid: true,
-      sanitizedData: { orderId: 'TEST123' }
-    })
+    mockValidation.validateClaimRequest = jest.fn()
     
     // Setup rate limit mocks
     mockRateLimit = require('../../lib/rateLimit')
     mockRateLimit.withRateLimit = jest.fn((handler) => handler)
+    
+    // Setup error handler mocks
+    mockErrorHandler = require('../../lib/errorHandler')
+    mockErrorHandler.withErrorHandler = jest.fn((handler) => handler)
+    mockErrorHandler.createSuccessResponse = jest.fn()
+    mockErrorHandler.validateOrThrow = jest.fn()
+    mockErrorHandler.NotFoundError = jest.fn()
+    mockErrorHandler.ValidationError = jest.fn()
   })
 
   describe('POST /api/claim', () => {
@@ -52,16 +60,17 @@ describe('/api/claim', () => {
         download_link: 'https://example.com/download'
       }]
       
+      mockErrorHandler.validateOrThrow.mockReturnValue({ orderId: 'TEST123' })
       mockDatabase.getOrderById.mockResolvedValue(mockOrder)
       mockDatabase.getOrderProducts.mockResolvedValue(mockProducts)
       mockDatabase.updateOrderClaimStatus.mockResolvedValue(undefined)
-      
-      // Mock the POST handler
-      const mockPOST = jest.fn().mockResolvedValue(
-        NextResponse.json({
+      mockErrorHandler.createSuccessResponse.mockReturnValue(
+        Response.json({
           success: true,
-          products: mockProducts,
-          timestamp: new Date().toISOString()
+          data: {
+            message: 'Order claimed successfully',
+            products: mockProducts
+          }
         })
       )
       
@@ -70,27 +79,33 @@ describe('/api/claim', () => {
         body: { orderId: 'TEST123' }
       })
       
-      const response = await mockPOST(request)
-      const responseData = await response.json()
+      await POST(request)
       
-      expect(response.status).toBe(200)
-      expect(responseData).toHaveProperty('success', true)
-      expect(responseData).toHaveProperty('products')
+      expect(mockDatabase.getOrderById).toHaveBeenCalledWith('TEST123')
+      expect(mockDatabase.updateOrderClaimStatus).toHaveBeenCalledWith('TEST123')
+      expect(mockDatabase.getOrderProducts).toHaveBeenCalledWith('TEST123')
     })
 
     it('should fail when order does not exist', async () => {
       mockDatabase.getOrderById.mockResolvedValue(null)
       
-      const mockPOST = jest.fn().mockResolvedValue(
-        NextResponse.json({
-          success: false,
-          error: {
-            code: 'NOT_FOUND',
-            message: 'Order not found',
-            timestamp: new Date().toISOString()
+      // Mock successful claim response
+      const mockErrorHandler = require('../../lib/errorHandler')
+      mockErrorHandler.createSuccessResponse = jest.fn().mockReturnValue(
+        Response.json({
+          success: true,
+          data: {
+            message: 'Order claimed successfully',
+            products: []
           }
-        }, { status: 404 })
+        })
       )
+      
+      mockErrorHandler.NotFoundError.mockImplementation((message: string) => {
+        const error = new Error(message)
+        error.name = 'NotFoundError'
+        throw error
+      })
       
       const request = createMockRequest('http://localhost:3000/api/claim', {
         method: 'POST',

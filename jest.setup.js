@@ -1,12 +1,18 @@
 import '@testing-library/jest-dom'
 
 // Polyfill fetch for Node.js test environment
-if (!global.fetch) {
-  global.fetch = require('whatwg-fetch').fetch
-  global.Request = require('whatwg-fetch').Request
-  global.Response = require('whatwg-fetch').Response
-  global.Headers = require('whatwg-fetch').Headers
+global.fetch = global.fetch || jest.fn()
+global.Request = global.Request || class Request {}
+global.Response = global.Response || class Response {
+  static json(data) {
+    return {
+      json: () => Promise.resolve(data),
+      status: 200,
+      ok: true
+    }
+  }
 }
+global.Headers = global.Headers || class Headers {}
 
 // Mock Next.js router
 jest.mock('next/navigation', () => ({
