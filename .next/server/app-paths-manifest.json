@@ -1,11 +1,17 @@
 {
-  "/api/auth/login/route": "app/api/auth/login/route.js",
-  "/api/admin/me/route": "app/api/admin/me/route.js",
-  "/api/products/route": "app/api/products/route.js",
-  "/api/orders/route": "app/api/orders/route.js",
-  "/api/settings/route": "app/api/settings/route.js",
-  "/api/claim/route": "app/api/claim/route.js",
-  "/page": "app/page.js",
+  "/_global-error/page": "app/_global-error/page.js",
+  "/_not-found/page": "app/_not-found/page.js",
   "/admin/login/page": "app/admin/login/page.js",
-  "/admin/page": "app/admin/page.js"
+  "/admin/page": "app/admin/page.js",
+  "/api/admin/me/route": "app/api/admin/me/route.js",
+  "/api/auth/change-password/route": "app/api/auth/change-password/route.js",
+  "/api/auth/login/route": "app/api/auth/login/route.js",
+  "/api/claim/route": "app/api/claim/route.js",
+  "/api/health/route": "app/api/health/route.js",
+  "/api/metrics/route": "app/api/metrics/route.js",
+  "/api/orders/route": "app/api/orders/route.js",
+  "/api/products/route": "app/api/products/route.js",
+  "/api/settings/route": "app/api/settings/route.js",
+  "/api/v1/[...path]/route": "app/api/v1/[...path]/route.js",
+  "/page": "app/page.js"
 }

@@ -17,7 +17,6 @@ git clone https://github.com/johnyww/self-claim-link-2.git
 cd self-claim-link-2
 
 # Copy environment files
-cp docker-compose.env.example .env
 cp .env.example .env.local
 ```
 
@@ -60,14 +59,14 @@ docker-compose logs -f app
 ## 🔧 Manual Deployment
 
 ### Prerequisites
-- Node.js 18+ 
+- Node.js 20+ 
 - PostgreSQL 15+
 - PM2 or similar process manager
 
 ### 1. Build Application
 
 ```bash
-npm ci --production
+npm install
 npm run build
 ```
 
@@ -149,9 +148,6 @@ docker-compose logs postgres
 
 ### Smoke Tests
 ```bash
-# Run health checks
-npm run test:e2e:smoke
-
 # Test critical paths
 curl -X POST http://localhost:3000/api/claim \
   -H "Content-Type: application/json" \

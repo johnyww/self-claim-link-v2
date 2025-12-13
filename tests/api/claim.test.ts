@@ -1,64 +1,51 @@
-/**
- * Claim API endpoint tests
- */
+jest.mock('../../lib/database', () => ({
+  getDatabase: jest.fn()
+}));
+jest.mock('../../lib/logger');
+jest.mock('../../lib/validation/validator');
+jest.mock('../../lib/rateLimit', () => ({
+  withApiRateLimit: jest.fn(handler => handler)
+}));
+jest.mock('../../lib/errorHandler', () => ({
+  withErrorHandler: jest.fn(handler => handler),
+  createSuccessResponse: jest.fn(),
+  NotFoundError: class extends Error { constructor(message: string) { super(message); this.name = 'NotFoundError'; } },
+  ValidationError: class extends Error { constructor(message: string) { super(message); this.name = 'ValidationError'; } }
+}));
 
-import { createMockRequest } from '../utils/testHelpers'
-
-// Mock all dependencies before importing the route
-jest.mock('../../lib/database')
-jest.mock('../../lib/logger')
-jest.mock('../../lib/validation')
-jest.mock('../../lib/rateLimit')
-jest.mock('../../lib/errorHandler')
-jest.mock('../../lib/config')
-
-// Mock NextResponse
-jest.mock('next/server', () => ({
-  NextResponse: {
-    json: jest.fn((data, options) => ({
-      json: () => Promise.resolve(data),
-      status: options?.status || 200,
-      ok: options?.status < 400
-    }))
+jest.doMock('../../lib/config', () => ({
+  __esModule: true,
+  default: {
+    getRateLimitConfig: jest.fn(() => ({
+      windowMs: 900000,
+      max: 100
+    })),
+    isDevelopment: jest.fn(() => true),
+    isProduction: jest.fn(() => false),
   }
-}))
+}));
+
+import { createMockRequest } from '../utils/testHelpers';
+import * as database from '../../lib/database';
+import * as errorHandler from '../../lib/errorHandler';
+import * as validator from '../../lib/validation/validator';
 
 describe('/api/claim', () => {
-  let mockDatabase: any
-  let mockValidation: any
-  let mockRateLimit: any
-  let mockErrorHandler: any
-  let POST: any
+  let POST: any;
+  let mockDbClient: any;
 
   beforeEach(async () => {
-    jest.clearAllMocks()
+    jest.clearAllMocks();
     
-    // Setup database mocks
-    mockDatabase = require('../../lib/database')
-    mockDatabase.getDatabase = jest.fn().mockResolvedValue({
-      query: jest.fn()
-    })
-    
-    // Setup validation mocks
-    mockValidation = require('../../lib/validation')
-    mockValidation.validateOrderId = jest.fn()
-    
-    // Setup rate limit mocks
-    mockRateLimit = require('../../lib/rateLimit')
-    mockRateLimit.withApiRateLimit = jest.fn((handler) => handler)
-    
-    // Setup error handler mocks
-    mockErrorHandler = require('../../lib/errorHandler')
-    mockErrorHandler.withErrorHandler = jest.fn((handler) => handler)
-    mockErrorHandler.createSuccessResponse = jest.fn()
-    mockErrorHandler.validateOrThrow = jest.fn()
-    mockErrorHandler.NotFoundError = jest.fn()
-    mockErrorHandler.ValidationError = jest.fn()
+    mockDbClient = {
+      query: jest.fn().mockResolvedValue({ rows: [] }),
+      release: jest.fn()
+    };
+    (database.getDatabase as jest.Mock).mockResolvedValue({ connect: () => mockDbClient });
 
-    // Import the route after setting up mocks
-    const route = await import('../../app/api/claim/route')
-    POST = route.POST
-  })
+    const route = await import('../../app/api/claim/route');
+    POST = route.POST;
+  });
 
   describe('POST /api/claim', () => {
     it('should successfully claim an order', async () => {
@@ -68,7 +55,7 @@ describe('/api/claim', () => {
         claim_count: 0,
         one_time_use: true,
         expiration_date: new Date(Date.now() + 24 * 60 * 60 * 1000)
-      }
+      };
       
       const mockProducts = [{
         id: 1,
@@ -76,20 +63,18 @@ describe('/api/claim', () => {
         description: 'Test Description',
         image_url: 'https://example.com/image.jpg',
         download_link: 'https://example.com/download'
-      }]
+      }];
       
-      const mockDbClient = {
-        query: jest.fn()
-      }
-      
-      mockDatabase.getDatabase.mockResolvedValue(mockDbClient)
       mockDbClient.query
-        .mockResolvedValueOnce({ rows: [mockOrder] }) // Order query
-        .mockResolvedValueOnce({ rows: mockProducts }) // Products query
-        .mockResolvedValueOnce({ rows: [] }) // Update query
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce({ rows: [mockOrder] }) // SELECT
+        .mockResolvedValueOnce({}) // UPDATE
+        .mockResolvedValueOnce({ rows: mockProducts }) // SELECT
+        .mockResolvedValueOnce({}); // COMMIT
       
-      mockErrorHandler.validateOrThrow.mockReturnValue('TEST123')
-      mockErrorHandler.createSuccessResponse.mockReturnValue({
+      (validator.validate as jest.Mock).mockReturnValue({ orderId: 'TEST123' });
+      
+      (errorHandler.createSuccessResponse as jest.Mock).mockReturnValue({
         json: () => Promise.resolve({
           success: true,
           data: {
@@ -99,42 +84,33 @@ describe('/api/claim', () => {
         }),
         status: 200,
         ok: true
-      })
+      });
       
       const request = createMockRequest('http://localhost:3000/api/claim', {
         method: 'POST',
-        body: { orderId: 'TEST123' }
-      })
+        body: JSON.stringify({ orderId: 'TEST123' })
+      });
       
-      await POST(request)
+      await POST(request);
       
-      expect(mockDatabase.getDatabase).toHaveBeenCalled()
-      expect(mockDbClient.query).toHaveBeenCalledTimes(3)
-      expect(mockErrorHandler.createSuccessResponse).toHaveBeenCalled()
-    })
+      expect(mockDbClient.query).toHaveBeenCalledTimes(5);
+      expect(errorHandler.createSuccessResponse).toHaveBeenCalled();
+    });
 
     it('should fail when order does not exist', async () => {
-      const mockDbClient = {
-        query: jest.fn()
-      }
+      mockDbClient.query
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce({ rows: [] }); // SELECT
       
-      mockDatabase.getDatabase.mockResolvedValue(mockDbClient)
-      mockDbClient.query.mockResolvedValueOnce({ rows: [] }) // No order found
-      
-      mockErrorHandler.validateOrThrow.mockReturnValue('NONEXISTENT')
-      mockErrorHandler.NotFoundError.mockImplementation((message: string) => {
-        const error = new Error(message)
-        error.name = 'NotFoundError'
-        throw error
-      })
+      (validator.validate as jest.Mock).mockReturnValue({ orderId: 'NONEXISTENT' });
       
       const request = createMockRequest('http://localhost:3000/api/claim', {
         method: 'POST',
-        body: { orderId: 'NONEXISTENT' }
-      })
+        body: JSON.stringify({ orderId: 'NONEXISTENT' })
+      });
       
-      await expect(POST(request)).rejects.toThrow('Order')
-    })
+      await expect(POST(request)).rejects.toThrow('Order not found');
+    });
 
     it('should fail when order is already claimed (one-time use)', async () => {
       const claimedOrder = {
@@ -143,34 +119,21 @@ describe('/api/claim', () => {
         claim_count: 1,
         one_time_use: true,
         expiration_date: new Date(Date.now() + 24 * 60 * 60 * 1000)
-      }
+      };
       
-      const mockDbClient = {
-        query: jest.fn()
-      }
+      mockDbClient.query
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce({ rows: [claimedOrder] }); // SELECT
       
-      mockDatabase.getDatabase.mockResolvedValue(mockDbClient)
-      mockDbClient.query.mockResolvedValueOnce({ rows: [claimedOrder] })
-      
-      mockErrorHandler.validateOrThrow.mockReturnValue('TEST123')
-      mockErrorHandler.createSuccessResponse.mockReturnValue({
-        json: () => Promise.resolve({
-          success: false,
-          message: 'This order has already been claimed (one-time use only)'
-        }),
-        status: 400,
-        ok: false
-      })
+      (validator.validate as jest.Mock).mockReturnValue({ orderId: 'TEST123' });
       
       const request = createMockRequest('http://localhost:3000/api/claim', {
         method: 'POST',
-        body: { orderId: 'TEST123' }
-      })
+        body: JSON.stringify({ orderId: 'TEST123' })
+      });
       
-      const response = await POST(request)
-      
-      expect(response.status).toBe(400)
-    })
+      await expect(POST(request)).rejects.toThrow('This order has already been claimed (one-time use only)');
+    });
 
     it('should fail when order is expired', async () => {
       const expiredOrder = {
@@ -179,64 +142,47 @@ describe('/api/claim', () => {
         claim_count: 0,
         one_time_use: true,
         expiration_date: new Date(Date.now() - 24 * 60 * 60 * 1000)
-      }
+      };
       
-      const mockDbClient = {
-        query: jest.fn()
-      }
+      mockDbClient.query
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce({ rows: [expiredOrder] }); // SELECT
       
-      mockDatabase.getDatabase.mockResolvedValue(mockDbClient)
-      mockDbClient.query.mockResolvedValueOnce({ rows: [expiredOrder] })
-      
-      mockErrorHandler.validateOrThrow.mockReturnValue('TEST123')
-      mockErrorHandler.createSuccessResponse.mockReturnValue({
-        json: () => Promise.resolve({
-          success: false,
-          message: 'This order has expired'
-        }),
-        status: 400,
-        ok: false
-      })
+      (validator.validate as jest.Mock).mockReturnValue({ orderId: 'TEST123' });
       
       const request = createMockRequest('http://localhost:3000/api/claim', {
         method: 'POST',
-        body: { orderId: 'TEST123' }
-      })
+        body: JSON.stringify({ orderId: 'TEST123' })
+      });
       
-      const response = await POST(request)
-      
-      expect(response.status).toBe(400)
-    })
+      await expect(POST(request)).rejects.toThrow('This order has expired');
+    });
 
     it('should fail with missing order ID', async () => {
-      mockErrorHandler.validateOrThrow.mockImplementation(() => {
-        throw new Error('Order ID is required')
-      })
-      
+      (validator.validate as jest.Mock).mockImplementation(() => {
+        throw new Error('Validation failed');
+      });
       const request = createMockRequest('http://localhost:3000/api/claim', {
         method: 'POST',
-        body: {}
-      })
+        body: JSON.stringify({})
+      });
       
-      await expect(POST(request)).rejects.toThrow('Order ID is required')
-    })
+      await expect(POST(request)).rejects.toThrow('Validation failed');
+    });
 
     it('should handle database errors', async () => {
-      const mockDbClient = {
-        query: jest.fn()
-      }
+      mockDbClient.query
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockRejectedValueOnce(new Error('Database error'));
       
-      mockDatabase.getDatabase.mockResolvedValue(mockDbClient)
-      mockDbClient.query.mockRejectedValue(new Error('Database error'))
-      
-      mockErrorHandler.validateOrThrow.mockReturnValue('TEST123')
+      (validator.validate as jest.Mock).mockReturnValue({ orderId: 'TEST123' });
       
       const request = createMockRequest('http://localhost:3000/api/claim', {
         method: 'POST',
-        body: { orderId: 'TEST123' }
-      })
+        body: JSON.stringify({ orderId: 'TEST123' })
+      });
       
-      await expect(POST(request)).rejects.toThrow('Database error')
-    })
-  })
-})
+      await expect(POST(request)).rejects.toThrow('Database error');
+    });
+  });
+});

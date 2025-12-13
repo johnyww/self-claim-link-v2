@@ -1,22 +1,20 @@
 import { NextRequest } from 'next/server';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
+import { z } from 'zod';
 import { getAdminByUsername, recordFailedLogin, resetFailedLogins, isAdminLocked } from '@/lib/database';
 import { withStrictRateLimit } from '@/lib/rateLimit';
-import { withErrorHandler, createSuccessResponse, AuthenticationError, validateOrThrow } from '@/lib/errorHandler';
-import { validateAdminCredentials, ValidationError } from '@/lib/validation';
-import config from '@/lib/config';
+import { withErrorHandler, createSuccessResponse, AuthenticationError } from '@/lib/errorHandler';
+import { validate, schemas } from '@/lib/validation/validator';
+import { signToken } from '@/lib/auth/jwt';
 
 async function loginHandler(request: NextRequest) {
-  let requestBody;
-  try {
-    requestBody = await request.json();
-  } catch (error) {
-    throw new ValidationError(['Invalid JSON in request body']);
-  }
+  const requestBody = await request.json();
   
   // Validate input
-  const { username, password } = validateOrThrow(validateAdminCredentials, requestBody);
+  const { username, password } = validate(z.object({ 
+    username: schemas.username, 
+    password: schemas.password 
+  }), requestBody);
   
   // Check if account is locked
   if (await isAdminLocked(username)) {
@@ -49,11 +47,7 @@ async function loginHandler(request: NextRequest) {
     mustChangePassword: admin.must_change_password
   };
   
-  const token = jwt.sign(
-    tokenPayload,
-    config.getJwtSecret(),
-    { expiresIn: `${config.get().sessionTimeoutHours}h` }
-  );
+  const token = signToken(tokenPayload);
   
   return createSuccessResponse({
     token,

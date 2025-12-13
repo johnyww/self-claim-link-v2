@@ -18,6 +18,11 @@ global.Response = global.Response || class Response {
 }
 global.Headers = global.Headers || class Headers {}
 
+// Polyfill for setImmediate for winston in Jest environment
+if (typeof setImmediate === 'undefined') {
+  global.setImmediate = (fn, ...args) => global.setTimeout(fn, 0, ...args);
+}
+
 // Mock Next.js router
 jest.mock('next/navigation', () => ({
   useRouter() {

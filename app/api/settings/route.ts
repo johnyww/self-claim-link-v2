@@ -36,7 +36,7 @@ export async function PUT(request: NextRequest) {
     const pool = await getDatabase();
 
     switch (action) {
-      case 'update_settings':
+      case 'update_settings': {
         const { settings } = data;
         
         // Update each setting
@@ -48,8 +48,9 @@ export async function PUT(request: NextRequest) {
         }
         
         return NextResponse.json({ success: true, message: 'Settings updated successfully' });
+      }
 
-      case 'create_admin':
+      case 'create_admin': {
         const { username, password } = data;
         
         // Check if username already exists
@@ -71,8 +72,9 @@ export async function PUT(request: NextRequest) {
           message: 'Admin created successfully',
           adminId: result.rows[0].id
         });
+      }
 
-      case 'update_admin_password':
+      case 'update_admin_password': {
         const { adminId, newPassword } = data;
         
         // Validate password requirements (consistent with login validation)
@@ -95,8 +97,9 @@ export async function PUT(request: NextRequest) {
         );
         
         return NextResponse.json({ success: true, message: 'Password updated successfully' });
+      }
 
-      case 'delete_admin':
+      case 'delete_admin': {
         const { adminId: deleteAdminId } = data;
         
         // Prevent deleting the last admin
@@ -126,6 +129,7 @@ export async function PUT(request: NextRequest) {
           message: 'Admin deleted successfully',
           selfDeletion: isSelfDeletion
         });
+      }
 
       default:
         return NextResponse.json({ error: 'Invalid action' }, { status: 400 });

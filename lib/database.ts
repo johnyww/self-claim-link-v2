@@ -25,7 +25,24 @@ export async function getDatabase(): Promise<Pool> {
     max: 20,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 2000,
-    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+    ssl: process.env.NODE_ENV === 'production' 
+      ? { 
+          rejectUnauthorized: true,
+          // It's recommended to use environment variables for SSL certs in production
+          // ca: process.env.DB_SSL_CA,
+          // cert: process.env.DB_SSL_CERT,
+          // key: process.env.DB_SSL_KEY,
+        } 
+      : false,
+  });
+
+  // Add a global error handler for the pool
+  pool.on('error', (err, _client) => {
+    logger.error('Unexpected error on idle PostgreSQL client', { 
+      error: err.message, 
+      stack: err.stack
+    });
+    // You might want to add logic here to handle the error, e.g., by trying to reconnect
   });
 
   // Test connection
@@ -110,6 +127,20 @@ async function initializeDatabase(): Promise<void> {
       );
     `);
 
+    // Add indexes for performance
+    await client.query('CREATE INDEX IF NOT EXISTS idx_orders_order_id ON orders(order_id);');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_order_products_order_id ON order_products(order_id);');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_order_products_product_id ON order_products(product_id);');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_admins_username ON admins(username);');
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ip_rate_limits (
+        ip TEXT PRIMARY KEY,
+        request_count INTEGER NOT NULL DEFAULT 1,
+        last_request_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
     logger.info('PostgreSQL database schema initialized successfully');
 
     // Create default admin if not exists
@@ -118,6 +149,60 @@ async function initializeDatabase(): Promise<void> {
   } catch (error) {
     logger.error('Database initialization failed:', { error });
     throw new DatabaseError('Failed to initialize database schema');
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Checks and updates the rate limit for a given IP address.
+ * @param ip The client's IP address.
+ * @param windowSeconds The time window in seconds to check for requests.
+ * @param maxRequests The maximum number of requests allowed in the window.
+ * @returns An object with the rate limit status.
+ */
+export async function checkIpRateLimit(ip: string, windowSeconds: number, maxRequests: number): Promise<{ isLimited: boolean, remaining: number, reset: number }> {
+  const pool = await getDatabase();
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const now = Date.now();
+    const windowStart = new Date(now - windowSeconds * 1000);
+
+    // Upsert logic: Insert a new record or update the existing one for the IP
+    const result = await client.query(`
+      INSERT INTO ip_rate_limits (ip, request_count, last_request_at)
+      VALUES ($1, 1, CURRENT_TIMESTAMP)
+      ON CONFLICT (ip)
+      DO UPDATE SET
+        request_count = CASE
+          WHEN ip_rate_limits.last_request_at < $2 THEN 1
+          ELSE ip_rate_limits.request_count + 1
+        END,
+        last_request_at = CURRENT_TIMESTAMP
+      RETURNING request_count, last_request_at;
+    `, [ip, windowStart]);
+
+    const { request_count, last_request_at } = result.rows[0];
+
+    await client.query('COMMIT');
+
+    const isLimited = request_count > maxRequests;
+    const remaining = Math.max(0, maxRequests - request_count);
+    const resetTime = new Date(last_request_at).getTime() + windowSeconds * 1000;
+
+    return {
+      isLimited,
+      remaining,
+      reset: resetTime,
+    };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    logger.error('Failed to check IP rate limit', { ip, error });
+    // Fail-closed: If the rate limiter fails, we block the request.
+    return { isLimited: true, remaining: 0, reset: Date.now() + 60000 };
   } finally {
     client.release();
   }

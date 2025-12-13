@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { Package, Download, AlertCircle, CheckCircle } from 'lucide-react';
 import { ClaimResponse } from '@/lib/types';
 
@@ -111,9 +112,11 @@ export default function Home() {
                           <div className="flex items-start space-x-3">
                             {product.image_url && (
                               <div className="flex-shrink-0">
-                                <img
+                                <Image
                                   src={product.image_url}
                                   alt={product.name}
+                                  width={64} // Corresponding to w-16
+                                  height={64} // Corresponding to h-16
                                   className="w-16 h-16 rounded-md object-cover border border-gray-200"
                                   onError={(e) => {
                                     const target = e.target as HTMLImageElement;

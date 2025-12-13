@@ -1,49 +1,14 @@
 import { NextRequest } from 'next/server';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
 import { getAdminByUsername, updateAdminPassword } from '@/lib/database';
 import { withStrictRateLimit } from '@/lib/rateLimit';
-import { withErrorHandler, createSuccessResponse, AuthenticationError, validateOrThrow } from '@/lib/errorHandler';
+import { withErrorHandler, createSuccessResponse, AuthenticationError } from '@/lib/errorHandler';
+import { z } from 'zod';
+import { validate, schemas } from '@/lib/validation/validator';
+import { verifyToken } from '@/lib/auth/jwt';
+import { withCsrfProtection } from '@/lib/middleware/csrf';
 import config from '@/lib/config';
 
-function validatePasswordChangeData(data: any) {
-  const errors: string[] = [];
-  let sanitizedData: any = {};
-  
-  if (!data.currentPassword) {
-    errors.push('Current password is required');
-  } else {
-    sanitizedData.currentPassword = data.currentPassword;
-  }
-  
-  if (!data.newPassword) {
-    errors.push('New password is required');
-  } else if (typeof data.newPassword !== 'string') {
-    errors.push('New password must be a string');
-  } else if (data.newPassword.length < config.getPasswordMinLength()) {
-    errors.push(`New password must be at least ${config.getPasswordMinLength()} characters long`);
-  } else if (data.newPassword.length > config.getPasswordMaxLength()) {
-    errors.push(`New password must be less than ${config.getPasswordMaxLength()} characters`);
-  } else {
-    sanitizedData.newPassword = data.newPassword;
-  }
-  
-  if (!data.confirmPassword) {
-    errors.push('Password confirmation is required');
-  } else if (data.newPassword !== data.confirmPassword) {
-    errors.push('New password and confirmation do not match');
-  }
-  
-  if (data.currentPassword === data.newPassword) {
-    errors.push('New password must be different from current password');
-  }
-  
-  return {
-    isValid: errors.length === 0,
-    errors,
-    sanitizedData
-  };
-}
 
 async function changePasswordHandler(request: NextRequest) {
   // Get JWT token from Authorization header
@@ -55,17 +20,25 @@ async function changePasswordHandler(request: NextRequest) {
   
   const token = authHeader.substring(7);
   
-  let decoded: any;
-  try {
-    decoded = jwt.verify(token, config.getJwtSecret());
-  } catch (error) {
-    throw new AuthenticationError('Invalid or expired token');
-  }
+  const decoded = verifyToken(token);
   
   const requestBody = await request.json();
   
   // Validate input
-  const { currentPassword, newPassword } = validateOrThrow(validatePasswordChangeData, requestBody);
+  const { currentPassword, newPassword } = validate(
+    z.object({
+      currentPassword: schemas.password,
+      newPassword: schemas.password,
+      confirmPassword: schemas.password,
+    }).refine((data) => data.newPassword === data.confirmPassword, {
+      message: 'New password and confirmation do not match',
+      path: ['confirmPassword'],
+    }).refine((data) => data.currentPassword !== data.newPassword, {
+      message: 'New password must be different from current password',
+      path: ['newPassword'],
+    }),
+    requestBody
+  );
   
   // Get admin user
   const admin = await getAdminByUsername(decoded.username);
@@ -93,4 +66,4 @@ async function changePasswordHandler(request: NextRequest) {
   });
 }
 
-export const POST = withStrictRateLimit(withErrorHandler(changePasswordHandler));
+export const POST = withCsrfProtection(withStrictRateLimit(withErrorHandler(changePasswordHandler)));

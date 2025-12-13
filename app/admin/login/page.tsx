@@ -11,7 +11,7 @@ export default function AdminLogin() {
     password: ''
   });
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [_error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showPasswordChange, setShowPasswordChange] = useState(false);
   const [adminToken, setAdminToken] = useState('');
@@ -21,7 +21,7 @@ export default function AdminLogin() {
     confirmPassword: ''
   });
   const [passwordChangeLoading, setPasswordChangeLoading] = useState(false);
-  const [passwordChangeError, setPasswordChangeError] = useState('');
+  const [_passwordChangeError, setPasswordChangeError] = useState('');
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
@@ -54,10 +54,10 @@ export default function AdminLogin() {
           router.push('/admin');
         }
       } else {
-        setError(data.error?.message || data.error || 'Login failed');
+        setError(_error => data.error?.message || data.error || 'Login failed');
       }
     } catch (error) {
-      setError('Network error. Please try again.');
+      setError(_error => 'Network error. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -69,13 +69,13 @@ export default function AdminLogin() {
     setPasswordChangeError('');
 
     if (passwordChangeData.newPassword !== passwordChangeData.confirmPassword) {
-      setPasswordChangeError('New password and confirmation do not match');
+      setPasswordChangeError(_passwordChangeError => 'New password and confirmation do not match');
       setPasswordChangeLoading(false);
       return;
     }
 
     if (passwordChangeData.newPassword.length < 8) {
-      setPasswordChangeError('New password must be at least 8 characters long');
+      setPasswordChangeError(_passwordChangeError => 'New password must be at least 8 characters long');
       setPasswordChangeLoading(false);
       return;
     }
@@ -97,10 +97,10 @@ export default function AdminLogin() {
         localStorage.setItem('adminToken', adminToken);
         router.push('/admin');
       } else {
-        setPasswordChangeError(data.error?.message || data.error || 'Password change failed');
+        setPasswordChangeError(_passwordChangeError => data.error?.message || data.error || 'Password change failed');
       }
     } catch (error) {
-      setPasswordChangeError('Network error. Please try again.');
+      setPasswordChangeError(_passwordChangeError => 'Network error. Please try again.');
     } finally {
       setPasswordChangeLoading(false);
     }
@@ -125,9 +125,9 @@ export default function AdminLogin() {
 
           {/* Login Form */}
           <form onSubmit={handleSubmit} className="space-y-6">
-            {error && (
+            {_error && (
               <div className="bg-red-50 border border-red-200 rounded-md p-4">
-                <p className="text-red-800 text-sm">{error}</p>
+                <p className="text-red-800 text-sm">{_error}</p>
               </div>
             )}
 
@@ -209,18 +209,19 @@ export default function AdminLogin() {
               </div>
 
               <form onSubmit={handlePasswordChange} className="space-y-4">
-                {passwordChangeError && (
+                {_passwordChangeError && (
                   <div className="bg-red-50 border border-red-200 rounded-md p-4">
-                    <p className="text-red-800 text-sm">{passwordChangeError}</p>
+                    <p className="text-red-800 text-sm">{_passwordChangeError}</p>
                   </div>
                 )}
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="current-password-modal" className="block text-sm font-medium text-gray-700 mb-2">
                     Current Password
                   </label>
                   <input
                     type="password"
+                    id="current-password-modal"
                     value={passwordChangeData.currentPassword}
                     onChange={(e) => setPasswordChangeData({...passwordChangeData, currentPassword: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white text-gray-900"
@@ -230,12 +231,13 @@ export default function AdminLogin() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="new-password-modal" className="block text-sm font-medium text-gray-700 mb-2">
                     New Password
                   </label>
                   <div className="relative">
                     <input
                       type={showNewPassword ? 'text' : 'password'}
+                      id="new-password-modal"
                       value={passwordChangeData.newPassword}
                       onChange={(e) => setPasswordChangeData({...passwordChangeData, newPassword: e.target.value})}
                       className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white text-gray-900"
@@ -258,12 +260,13 @@ export default function AdminLogin() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="confirm-new-password-modal" className="block text-sm font-medium text-gray-700 mb-2">
                     Confirm New Password
                   </label>
                   <div className="relative">
                     <input
                       type={showConfirmPassword ? 'text' : 'password'}
+                      id="confirm-new-password-modal"
                       value={passwordChangeData.confirmPassword}
                       onChange={(e) => setPasswordChangeData({...passwordChangeData, confirmPassword: e.target.value})}
                       className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white text-gray-900"

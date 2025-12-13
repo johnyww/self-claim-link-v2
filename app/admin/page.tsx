@@ -16,7 +16,9 @@ import {
   Save,
   X
 } from 'lucide-react';
-import { Product, Order } from '@/lib/types';
+import { Product, Order, Admin } from '@/lib/types';
+
+import Image from 'next/image';
 
 // Utility function to format dates as DD/MM/YYYY
 const formatDate = (dateString: string | null | undefined): string => {
@@ -201,7 +203,7 @@ export default function AdminDashboard() {
 function OrdersTab({ orders, products, onRefresh }: { orders: Order[], products: Product[], onRefresh: () => void }) {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
-  const [settings, setSettings] = useState<any>({});
+  const [settings, setSettings] = useState<Record<string, string>>({});
   const [formData, setFormData] = useState({
     order_id: '',
     product_ids: [] as number[],
@@ -211,26 +213,25 @@ function OrdersTab({ orders, products, onRefresh }: { orders: Order[], products:
 
   // Fetch settings when component mounts
   useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const response = await fetch('/api/settings');
+        const data = await response.json();
+        const fetchedSettings = data.settings || {};
+        setSettings(fetchedSettings);
+        
+        // Update form defaults with current settings
+        setFormData(prev => ({
+          ...prev,
+          expiration_days: parseInt(fetchedSettings.default_expiration_days) || 7,
+          one_time_use: fetchedSettings.one_time_use_enabled === 'true'
+        }));
+      } catch (error) {
+        console.error('Error fetching settings:', error);
+      }
+    };
     fetchSettings();
-  }, []);
-
-  const fetchSettings = async () => {
-    try {
-      const response = await fetch('/api/settings');
-      const data = await response.json();
-      const fetchedSettings = data.settings || {};
-      setSettings(fetchedSettings);
-      
-      // Update form defaults with current settings
-      setFormData(prev => ({
-        ...prev,
-        expiration_days: parseInt(fetchedSettings.default_expiration_days) || 7,
-        one_time_use: fetchedSettings.one_time_use_enabled === 'true'
-      }));
-    } catch (error) {
-      console.error('Error fetching settings:', error);
-    }
-  };
+  }, [setSettings, setFormData]); // Dependencies for inner fetchSettings
 
   const getDefaultFormData = () => ({
     order_id: '',
@@ -309,7 +310,7 @@ function OrdersTab({ orders, products, onRefresh }: { orders: Order[], products:
     setEditingOrder(order);
     setFormData({
       order_id: order.order_id,
-      product_ids: order.products ? order.products.map((p: any) => p.id) : [],
+      product_ids: order.products ? order.products.map((p: Product) => p.id) : [],
       expiration_days: order.expiration_date ? Math.ceil((new Date(order.expiration_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : 7,
       one_time_use: Boolean(order.one_time_use) // Convert integer 0/1 to boolean
     });
@@ -346,11 +347,12 @@ function OrdersTab({ orders, products, onRefresh }: { orders: Order[], products:
           <form onSubmit={editingOrder ? handleEditOrder : handleCreateOrder} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="order-id" className="block text-sm font-medium text-gray-700 mb-1">
                   Order ID
                 </label>
                 <input
                   type="text"
+                  id="order-id"
                   value={formData.order_id}
                   onChange={(e) => setFormData({...formData, order_id: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 placeholder-gray-500"
@@ -358,7 +360,7 @@ function OrdersTab({ orders, products, onRefresh }: { orders: Order[], products:
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="product-ids" className="block text-sm font-medium text-gray-700 mb-1">
                   Products {products.length === 0 && <span className="text-red-500">(No products available - create products first)</span>}
                 </label>
                 {products.length === 0 ? (
@@ -366,11 +368,12 @@ function OrdersTab({ orders, products, onRefresh }: { orders: Order[], products:
                     No products available. Please create products first in the Products tab.
                   </div>
                 ) : (
-                  <div className="space-y-2 max-h-32 overflow-y-auto border border-gray-300 rounded-md p-2 bg-white">
+                  <div id="product-ids" className="space-y-2 max-h-32 overflow-y-auto border border-gray-300 rounded-md p-2 bg-white">
                     {products.map(product => (
-                      <label key={product.id} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-1 rounded">
+                      <label key={product.id} htmlFor={`product-${product.id}`} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-1 rounded">
                         <input
                           type="checkbox"
+                          id={`product-${product.id}`}
                           checked={formData.product_ids.includes(product.id)}
                           onChange={(e) => {
                             const productId = product.id;
@@ -392,11 +395,12 @@ function OrdersTab({ orders, products, onRefresh }: { orders: Order[], products:
                 </p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="expiration-days" className="block text-sm font-medium text-gray-700 mb-1">
                   Expiration (days)
                 </label>
                 <input
                   type="number"
+                  id="expiration-days"
                   value={formData.expiration_days}
                   onChange={(e) => setFormData({...formData, expiration_days: parseInt(e.target.value)})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
@@ -404,10 +408,11 @@ function OrdersTab({ orders, products, onRefresh }: { orders: Order[], products:
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="one-time-use-order" className="block text-sm font-medium text-gray-700 mb-1">
                   One-time use
                 </label>
                 <select
+                  id="one-time-use-order"
                   value={formData.one_time_use.toString()}
                   onChange={(e) => setFormData({...formData, one_time_use: e.target.value === 'true'})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
@@ -640,11 +645,12 @@ function ProductsTab({ products, onRefresh }: { products: Product[], onRefresh: 
           <form onSubmit={editingProduct ? handleEditProduct : handleCreateProduct} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="product-name" className="block text-sm font-medium text-gray-700 mb-1">
                   Product Name
                 </label>
                 <input
                   type="text"
+                  id="product-name"
                   value={formData.name}
                   onChange={(e) => setFormData({...formData, name: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 placeholder-gray-500"
@@ -652,11 +658,12 @@ function ProductsTab({ products, onRefresh }: { products: Product[], onRefresh: 
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="image-url" className="block text-sm font-medium text-gray-700 mb-1">
                   Image URL (optional)
                 </label>
                 <input
                   type="url"
+                  id="image-url"
                   value={formData.image_url}
                   onChange={(e) => setFormData({...formData, image_url: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 placeholder-gray-500"
@@ -664,10 +671,11 @@ function ProductsTab({ products, onRefresh }: { products: Product[], onRefresh: 
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
                 Description
               </label>
               <textarea
+                id="description"
                 value={formData.description}
                 onChange={(e) => setFormData({...formData, description: e.target.value})}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 placeholder-gray-500"
@@ -675,11 +683,12 @@ function ProductsTab({ products, onRefresh }: { products: Product[], onRefresh: 
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="download-link" className="block text-sm font-medium text-gray-700 mb-1">
                 Download Link
               </label>
               <input
                 type="url"
+                id="download-link"
                 value={formData.download_link}
                 onChange={(e) => setFormData({...formData, download_link: e.target.value})}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 placeholder-gray-500"
@@ -717,9 +726,11 @@ function ProductsTab({ products, onRefresh }: { products: Product[], onRefresh: 
         {products.map((product) => (
           <div key={product.id} className="bg-white rounded-lg shadow overflow-hidden">
             {product.image_url && (
-              <img 
+              <Image 
                 src={product.image_url} 
                 alt={product.name}
+                width={192} // Assuming h-48 is approx 192px and w-full needs an explicit width
+                height={192} // Assuming h-48 is approx 192px
                 className="w-full h-48 object-cover"
               />
             )}
@@ -771,9 +782,9 @@ function ProductsTab({ products, onRefresh }: { products: Product[], onRefresh: 
 }
 
 function SettingsTab() {
-  const [settings, setSettings] = useState<any>({});
-  const [tempSettings, setTempSettings] = useState<any>({});
-  const [admins, setAdmins] = useState<any[]>([]);
+  const [settings, setSettings] = useState<Record<string, string>>({});
+  const [tempSettings, setTempSettings] = useState<Record<string, string>>({});
+  const [admins, setAdmins] = useState<Admin[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -939,12 +950,13 @@ function SettingsTab() {
         <div className="p-6 space-y-6">
           {/* Default Expiration Period */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="default-expiration-days" className="block text-sm font-medium text-gray-700 mb-2">
               Default Expiration Period (days)
             </label>
             <div className="flex items-center space-x-4">
               <input
                 type="number"
+                id="default-expiration-days"
                 min="1"
                 max="365"
                 value={tempSettings.default_expiration_days || 7}
@@ -966,9 +978,10 @@ function SettingsTab() {
               One-time Use Policy
             </label>
             <div className="space-y-2">
-              <label className="flex items-center">
+              <label htmlFor="one-time-use-enabled" className="flex items-center">
                 <input
                   type="radio"
+                  id="one-time-use-enabled"
                   name="one_time_use"
                   checked={tempSettings.one_time_use_enabled === 'true'}
                   onChange={() => handleTempSettingsChange({ one_time_use_enabled: 'true' })}
@@ -978,9 +991,10 @@ function SettingsTab() {
                   Enabled - Orders can only be claimed once
                 </span>
               </label>
-              <label className="flex items-center">
+              <label htmlFor="one-time-use-disabled" className="flex items-center">
                 <input
                   type="radio"
+                  id="one-time-use-disabled"
                   name="one_time_use"
                   checked={tempSettings.one_time_use_enabled === 'false'}
                   onChange={() => handleTempSettingsChange({ one_time_use_enabled: 'false' })}
@@ -1026,7 +1040,7 @@ function SettingsTab() {
       {/* Admin Account Management */}
       <div className="bg-white rounded-lg shadow">
         <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-          <h3 className="text-lg font-medium text-gray-900">Admin Account Management</h3>
+          <h3 id="admin-account-management-heading" className="text-lg font-medium text-gray-900">Admin Account Management</h3>
           <button
             onClick={() => setShowCreateAdmin(true)}
             className="bg-primary-500 text-white px-4 py-2 rounded-md hover:bg-primary-600 flex items-center"
@@ -1042,11 +1056,12 @@ function SettingsTab() {
               <h4 className="text-md font-medium text-gray-900 mb-4">Create New Admin</h4>
               <form onSubmit={handleCreateAdmin} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="create-admin-username" className="block text-sm font-medium text-gray-700 mb-1">
                     Username
                   </label>
                   <input
                     type="text"
+                    id="create-admin-username"
                     required
                     value={adminForm.username}
                     onChange={(e) => setAdminForm({ ...adminForm, username: e.target.value })}
@@ -1054,11 +1069,12 @@ function SettingsTab() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="create-admin-password" className="block text-sm font-medium text-gray-700 mb-1">
                     Password
                   </label>
                   <input
                     type="password"
+                    id="create-admin-password"
                     required
                     minLength={6}
                     value={adminForm.password}
@@ -1126,11 +1142,12 @@ function SettingsTab() {
               </h4>
               <form onSubmit={(e) => handlePasswordChange(e, showPasswordChange)} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="change-password-new" className="block text-sm font-medium text-gray-700 mb-1">
                     New Password
                   </label>
                   <input
                     type="password"
+                    id="change-password-new"
                     required
                     minLength={8}
                     value={passwordForm.newPassword}
@@ -1140,11 +1157,12 @@ function SettingsTab() {
                   <p className="text-xs text-gray-500 mt-1">Must be at least 8 characters long</p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="change-password-confirm" className="block text-sm font-medium text-gray-700 mb-1">
                     Confirm Password
                   </label>
                   <input
                     type="password"
+                    id="change-password-confirm"
                     required
                     minLength={6}
                     value={passwordForm.confirmPassword}
