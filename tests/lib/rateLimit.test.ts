@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withStrictRateLimit, withApiRateLimit } from '@/lib/rateLimit';
 import { checkIpRateLimit } from '@/lib/database';
-import config from '@/lib/config';
+
 
 // Mock the database's checkIpRateLimit function
 jest.mock('@/lib/database', () => ({
