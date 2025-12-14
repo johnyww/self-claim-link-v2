@@ -126,7 +126,7 @@ export default function AdminLogin() {
           {/* Login Form */}
           <form onSubmit={handleSubmit} className="space-y-6">
             {_error && (
-              <div className="bg-red-50 border border-red-200 rounded-md p-4">
+              <div data-testid="admin-login-error" className="bg-red-50 border border-red-200 rounded-md p-4">
                 <p className="text-red-800 text-sm">{_error}</p>
               </div>
             )}

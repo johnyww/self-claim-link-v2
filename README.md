@@ -2,7 +2,7 @@
 
 A modern, secure, and self-hostable platform for virtual product delivery. This application allows you to create and manage digital products and provide your customers with a simple and secure way to claim them using their order ID.
 
-![CI Pipeline](https://github.com/johnyww/self-claim-link-v2/actions/workflows/ci.yml/badge.svg)
+[![Build Status](https://github.com/johnyww/self-claim-link-v2/workflows/CI%20Pipeline/badge.svg)](https://github.com/johnyww/self-claim-link-v2/actions?query=workflow%3ACI%20Pipeline)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## ✨ Features

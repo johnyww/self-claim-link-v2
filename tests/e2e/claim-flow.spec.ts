@@ -12,7 +12,7 @@ test.describe('Claim Flow', () => {
 
   test('should display the claim form', async ({ page }) => {
     // Check if the main elements are present
-    await expect(page.locator('h1')).toContainText('Claim Your Digital Product');
+    await expect(page.locator('h1')).toContainText('Claim Your Products');
     await expect(page.locator('input[placeholder*="order"]')).toBeVisible();
     await expect(page.locator('button[type="submit"]')).toBeVisible();
   });
@@ -23,16 +23,16 @@ test.describe('Claim Flow', () => {
     await page.click('button[type="submit"]');
     
     // Wait for error message
-    await expect(page.locator('[role="alert"]')).toBeVisible();
-    await expect(page.locator('[role="alert"]')).toContainText('not found');
+    await expect(page.locator('[data-testid="error-message"]')).toBeVisible();
+    await expect(page.locator('[data-testid="error-message"]')).toContainText('Order not found');
   });
 
   test('should handle empty order ID', async ({ page }) => {
-    // Try to submit without entering order ID
-    await page.click('button[type="submit"]');
+    // Ensure the order ID input is empty
+    await page.fill('input[placeholder*="order"]', '');
     
-    // Should show validation error
-    await expect(page.locator('[role="alert"]')).toBeVisible();
+    // Assert that the submit button is disabled
+    await expect(page.locator('button[type="submit"]')).toBeDisabled();
   });
 });
 
@@ -49,8 +49,8 @@ test.describe('Admin Flow', () => {
     await page.goto('/admin/login');
     
     // Fill login form
-    await page.fill('input[name="username"]', 'admin');
-    await page.fill('input[name="password"]', 'password');
+    await page.fill('input#username', 'admin');
+    await page.fill('input#password', 'password');
     await page.click('button[type="submit"]');
     
     // Should redirect to admin dashboard
@@ -62,13 +62,13 @@ test.describe('Admin Flow', () => {
     await page.goto('/admin/login');
     
     // Fill with invalid credentials
-    await page.fill('input[name="username"]', 'admin');
-    await page.fill('input[name="password"]', 'wrongpassword');
+    await page.fill('input#username', 'admin');
+    await page.fill('input#password', 'wrongpassword');
     await page.click('button[type="submit"]');
     
     // Should show error
-    await expect(page.locator('[role="alert"]')).toBeVisible();
-    await expect(page.locator('[role="alert"]')).toContainText('Invalid');
+    await expect(page.locator('[data-testid="admin-login-error"]')).toBeVisible();
+    await expect(page.locator('[data-testid="admin-login-error"]')).toContainText('Login failed');
   });
 });
 

@@ -58,7 +58,7 @@ class ConfigManager {
   }
 
   private getDefaultJwtSecret(): string {
-    if (this.isProduction()) {
+    if (process.env.NODE_ENV === 'production') {
       throw new Error(
         'JWT_SECRET environment variable is required in production. ' +
         'Generate a secure secret using: openssl rand -base64 32'

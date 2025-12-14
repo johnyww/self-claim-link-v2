@@ -18,8 +18,10 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # Set environment variables for build
+ARG JWT_SECRET
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV JWT_SECRET=$JWT_SECRET
 
 # Build the application
 RUN npm run build
@@ -36,7 +38,7 @@ RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
 # Copy the public folder
-COPY --from=builder /app/public ./public
+COPY ./public ./public
 
 # Set the correct permission for prerender cache
 RUN mkdir .next
